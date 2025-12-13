@@ -18,6 +18,8 @@
 		901486D62EEBB64200B740F4 /* RecipeEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901486D52EEBB63300B740F4 /* RecipeEditView.swift */; };
 		901486D82EEBB66700B740F4 /* RecipeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901486D72EEBB65800B740F4 /* RecipeListView.swift */; };
 		901487122EEBBEA100B740F4 /* memo.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487112EEBBE9200B740F4 /* memo.md */; };
+		901487232EEC270D00B740F4 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 901487222EEC270D00B740F4 /* SQLite */; };
+		901487262EEC375F00B740F4 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901487252EEC374300B740F4 /* DatabaseManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +54,7 @@
 		901486D52EEBB63300B740F4 /* RecipeEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEditView.swift; sourceTree = "<group>"; };
 		901486D72EEBB65800B740F4 /* RecipeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeListView.swift; sourceTree = "<group>"; };
 		901487112EEBBE9200B740F4 /* memo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = memo.md; sourceTree = "<group>"; };
+		901487252EEC374300B740F4 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -77,6 +80,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				901487232EEC270D00B740F4 /* SQLite in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -101,12 +105,14 @@
 			isa = PBXGroup;
 			children = (
 				901487112EEBBE9200B740F4 /* memo.md */,
+				901487242EEC371B00B740F4 /* Data */,
 				901486C22EEBB48F00B740F4 /* Models */,
 				901486C32EEBB4A100B740F4 /* Core */,
 				901486C42EEBB4AB00B740F4 /* Views */,
 				901486992EEBAF8D00B740F4 /* ReciFlowLite */,
 				901486A82EEBAF8F00B740F4 /* ReciFlowLiteTests */,
 				901486B22EEBAF8F00B740F4 /* ReciFlowLiteUITests */,
+				901487212EEC270D00B740F4 /* Frameworks */,
 				901486982EEBAF8D00B740F4 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -152,6 +158,21 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		901487212EEC270D00B740F4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		901487242EEC371B00B740F4 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				901487252EEC374300B740F4 /* DatabaseManager.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -172,6 +193,7 @@
 			);
 			name = ReciFlowLite;
 			packageProductDependencies = (
+				901487222EEC270D00B740F4 /* SQLite */,
 			);
 			productName = ReciFlowLite;
 			productReference = 901486972EEBAF8D00B740F4 /* ReciFlowLite.app */;
@@ -255,6 +277,9 @@
 			);
 			mainGroup = 9014868E2EEBAF8D00B740F4;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				901487202EEC26FC00B740F4 /* XCRemoteSwiftPackageReference "SQLite" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 901486982EEBAF8D00B740F4 /* Products */;
 			projectDirPath = "";
@@ -298,6 +323,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				901486CE2EEBB58B00B740F4 /* IngredientItemRowUIKitView.swift in Sources */,
+				901487262EEC375F00B740F4 /* DatabaseManager.swift in Sources */,
 				901486D22EEBB60200B740F4 /* ProcessEditView.swift in Sources */,
 				901486D62EEBB64200B740F4 /* RecipeEditView.swift in Sources */,
 				901486D02EEBB5D100B740F4 /* RecipeStore.swift in Sources */,
@@ -664,6 +690,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		901487202EEC26FC00B740F4 /* XCRemoteSwiftPackageReference "SQLite" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.15.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		901487222EEC270D00B740F4 /* SQLite */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 901487202EEC26FC00B740F4 /* XCRemoteSwiftPackageReference "SQLite" */;
+			productName = SQLite;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9014868F2EEBAF8D00B740F4 /* Project object */;
 }

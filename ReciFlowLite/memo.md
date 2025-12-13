@@ -43,3 +43,5 @@ RecipeListView 側のリストも自動で最新に更新されて見える
 List / 一覧側のプレビュー　➡️ RecipeListView(store: .preview) みたいに「束（Store）」を渡す
 
 Edit / 編集側のプレビュー　指定レコード一本だけ見れればいいので　➡️ RecipeEditView(recipe: .constant(Recipe.sample)) みたいに「1本だけ渡す」
+
+🟨マイグレーション
