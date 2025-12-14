@@ -152,7 +152,6 @@
 		901486C22EEBB48F00B740F4 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				90BB743B2EEEB31100F8F329 /* IngredientRow.swift */,
 				901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */,
 				9014872B2EEDF3A100B740F4 /* RootMemo.md */,
 				901487292EEDB1EA00B740F4 /* RightRailControls.swift */,
@@ -160,6 +159,7 @@
 				901486C92EEBB52000B740F4 /* Recipe.swift */,
 				901487312EEE3CF300B740F4 /* RecipeMemo.md */,
 				901486C72EEBB50800B740F4 /* IngredientItem.swift */,
+				90BB743B2EEEB31100F8F329 /* IngredientRow.swift */,
 				901486C52EEBB4E300B740F4 /* IngredientBlock.swift */,
 			);
 			path = Models;
