@@ -12,9 +12,16 @@ struct RecipeEditView: View {
         let recipe = store.recipe(for: recipeId)
 
         VStack(alignment: .leading, spacing: 12) {
+
             TextField("Title", text: $title)
                 .font(.title2.weight(.semibold))
                 .textFieldStyle(.roundedBorder)
+
+            //RecipeMetaStripで日付表示を共通化し、コードを簡素化する
+            if let r = recipe {
+                RecipeMetaStrip(createdAt: r.createdAt, updatedAt: r.updatedAt)
+            }
+            
 
             TextEditor(text: $memo)
                 .frame(minHeight: 140)
@@ -28,19 +35,12 @@ struct RecipeEditView: View {
                 }
                 .padding(.horizontal, -4)
 
-            if let r = recipe {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Created: \(r.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                    Text("Updated: \(r.updatedAt.formatted(date: .abbreviated, time: .shortened))")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
             Spacer()
         }
+        .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
+
         .padding(16)
-        .navigationTitle("Edit")
+        .navigationTitle("概要")
         .onAppear {
             // 初期表示に反映
             if let r = recipe {
@@ -55,6 +55,8 @@ struct RecipeEditView: View {
         .onChange(of: memo) { _, newValue in
             store.updateRecipeMeta(recipeId: recipeId, title: title, memo: newValue)
         }
+        
+        //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
         .overlay {
             RightRailControls(
                 mode: .forward,
@@ -72,6 +74,7 @@ struct RecipeEditView: View {
                 }
             )
         }
+        
 
     }
 }

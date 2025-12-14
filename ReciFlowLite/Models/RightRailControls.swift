@@ -26,11 +26,11 @@ struct RightRailControls: View {
 
                 // ───────── 透明スワイプレール（右端） ─────────
                 Rectangle()
-                    .fill(.clear)
+                    .fill(Color.red.opacity(0.05))//(.clear)✅着色して領域を見えるようにしている、変更はクリアに差し替えること
                     .frame(width: railWidth)
                     .contentShape(Rectangle())
                     .gesture(
-                        DragGesture(minimumDistance: 4)//値を減らす事でスワイプ反応を機敏にできる
+                        DragGesture(minimumDistance: 4)//🟩値を減らす事でスワイプ反応を機敏にできる
                             .onEnded { value in
                                 let dx = value.predictedEndTranslation.width
                                 if dx < -30 {      // 右→左
@@ -44,6 +44,8 @@ struct RightRailControls: View {
 
                 // ───────── 右端55〜60%：縦2段ボタン ─────────
                 VStack(spacing: 10) {
+                    
+                    //このボタン押したよーだけを知っている、ボタンデザインの記述
                     Button(action: onPrimary) {
                         Image(systemName: primarySymbol)
                             .font(.title3.weight(.semibold))
@@ -52,6 +54,7 @@ struct RightRailControls: View {
                             .clipShape(Circle())
                     }
 
+                    //こっちもボタン押されたよーを伝えるボタンデザインの記述
                     Button(action: onHome) {
                         Image(systemName: "list.bullet.rectangle")
                             .font(.title3.weight(.semibold))
@@ -62,17 +65,20 @@ struct RightRailControls: View {
                 }
                 .position(
                     x: geo.size.width - 28,
-                    y: geo.size.height * 0.58   // 上から58%（=下から42%）
+                    y: geo.size.height * 0.58   // ボタンの配置を決める上から58%（=下から42%）
                 )
             }
         }
         .allowsHitTesting(true)
     }
+    
+    
 
+    //移動先に遷移する処理
     private var primarySymbol: String {
         switch mode {
-        case .forward: return "chevron.right"
-        case .back:    return "chevron.left"
+        case .forward: return "chevron.right"      //Editからエンジンに
+        case .back:    return "chevron.left"        //エンジンから前のページに
         }
     }
 }

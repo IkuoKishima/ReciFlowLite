@@ -10,21 +10,28 @@ struct RecipeListView: View {
                 Button {
                     path.append(.edit(recipe.id))
                 } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(recipe.title.isEmpty ? "New Recipe" : recipe.title)
-                            .font(.headline)
+                    HStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(recipe.title.isEmpty ? "New Recipe" : recipe.title)
+                                .font(.headline)
+                            Text("Updated: \(recipe.updatedAt.formatted(date: .numeric, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                        Text("Updated: \(recipe.updatedAt.formatted(date: .numeric, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0) // ← これが「右側まで当たり判定」を作る決定打
                     }
+                    .padding(.vertical, 16)
+                    .contentShape(Rectangle()) // ← “行全体”を当たり判定に
                 }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)) // ← ここに置く
             }
         }
-        .navigationTitle("ReciFlowLite")
-        .overlay(alignment: .bottomTrailing) {
+
+        .overlay(alignment: .bottomTrailing) { // ✅ List全体に1個だけ
             Button {
-                let newId = store.addNewRecipeAndPersist() // ←下でRecipeStoreに追加する
+                let newId = store.addNewRecipeAndPersist()
                 path.append(.edit(newId))
             } label: {
                 Image(systemName: "plus")
@@ -36,6 +43,7 @@ struct RecipeListView: View {
             .padding(.trailing, 18)
             .padding(.bottom, 18)
         }
+
     }
 }
 

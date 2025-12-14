@@ -129,6 +129,11 @@ final class DatabaseManager {
         }
     }
     
+    
+    
+    // 注意: update は「変更確定」を意味する（閲覧ログではない）。
+    // 閲覧ログが必要になったら viewedAt を別カラムで追加する。
+
     func update(recipe: Recipe) {
         guard let db = db else { return }
 

@@ -9,8 +9,11 @@ struct IngredientEngineView: View {
         ZStack {
             // ここにエンジン（最小）を置く
             VStack(alignment: .leading, spacing: 12) {
+                
                 Text("Ingredient Engine")
                     .font(.title2.weight(.semibold))
+                
+                
 
                 Text("（Day2は動線優先。エンジン本体はここに実装していく）")
                     .font(.caption)
@@ -18,9 +21,10 @@ struct IngredientEngineView: View {
 
                 Spacer()
             }
+            .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
             .padding(16)
             
-            
+            //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
             .overlay {
                 RightRailControls(
                     mode: .back,
@@ -38,6 +42,8 @@ struct IngredientEngineView: View {
                     }
                 )
             }
+            
+            
 
         }
         .navigationTitle("Ingredients")
