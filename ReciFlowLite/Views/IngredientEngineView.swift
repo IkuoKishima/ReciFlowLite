@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct IngredientEngineView: View {
-    @ObservedObject var store: RecipeStore
+    @ObservedObject var recipeStore: RecipeStore          // レシピメタ用（必要なら）
+    @ObservedObject var engineStore: IngredientEngineStore // rows用（本体）
     let recipeId: UUID
     @Binding var path: [Route]
+
 
     var body: some View {
         ZStack {
@@ -12,8 +14,6 @@ struct IngredientEngineView: View {
                 
                 Text("Ingredient Engine")
                     .font(.title2.weight(.semibold))
-                
-                
 
                 Text("（Day2は動線優先。エンジン本体はここに実装していく）")
                     .font(.caption)
@@ -21,31 +21,40 @@ struct IngredientEngineView: View {
 
                 Spacer()
             }
-            .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
-            .padding(16)
-            
-            //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
-            .overlay {
-                RightRailControls(
-                    mode: .back,
-                    onPrimary: {
-                        if !path.isEmpty { path.removeLast() }  // < でも戻れる
-                    },
-                    onHome: {
-                        path = []                                // 🔳でリストへ
-                    },
-                    onSwipeLeft: {
-                        // Engineで左スワイプは何もしない（誤爆防止）
-                    },
-                    onSwipeRight: {
-                        if !path.isEmpty { path.removeLast() }   // 左→右で戻る
-                    }
-                )
-            }
             
             
-
+            
+         //ZStackの先端
+        }
+        
+        .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
+        .padding(16)
+        
+        //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
+        .overlay {
+            RightRailControls(
+                mode: .back,
+                onPrimary: {
+                    if !path.isEmpty { path.removeLast() }  // < でも戻れる
+                },
+                onHome: {
+                    path = []                                // 🔳でリストへ
+                },
+                onSwipeLeft: {
+                    // Engineで左スワイプは何もしない（誤爆防止）
+                },
+                onSwipeRight: {
+                    if !path.isEmpty { path.removeLast() }   // 左→右で戻る
+                }
+            )
         }
         .navigationTitle("Ingredients")
+        //bodyの先端
     }
+    
+    
+    
+    
+    
+    //構造体の先端
 }

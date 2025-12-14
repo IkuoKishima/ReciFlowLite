@@ -6,6 +6,10 @@ import SwiftUI
 
 final class RecipeStore: ObservableObject {
     @Published var recipes: [Recipe] = []
+    
+    private var engineStores: [UUID: IngredientEngineStore] = [:]
+    
+    // MARK: - 初期化
 
     init() {
         recipes = DatabaseManager.shared.fetchAllRecipes()
@@ -16,6 +20,18 @@ final class RecipeStore: ObservableObject {
     }
 
     @discardableResult
+    
+    
+    // MARK: - ファンクションの集まり
+    
+    //「engineStore辞書」を追加
+    func engineStore(for recipeId: UUID) -> IngredientEngineStore {
+        if let s = engineStores[recipeId] { return s }
+        let s = IngredientEngineStore()
+        engineStores[recipeId] = s
+        return s
+    }
+    
     
     
     func addNewRecipeAndPersist() -> UUID {
@@ -59,6 +75,11 @@ final class RecipeStore: ObservableObject {
         DatabaseManager.shared.update(recipe: recipes[idx])
 
     }
+    
+    
+    
+    
+    
 }
 
 extension RecipeStore {

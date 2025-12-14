@@ -12,8 +12,20 @@ struct ContentView: View {
                     case .edit(let id):
                         RecipeEditView(store: store, recipeId: id, path: $path)
 
+                    
+                    //✅ここでエンジンビューを生成している
                     case .engine(let id):
-                        IngredientEngineView(store: store, recipeId: id, path: $path)
+                        IngredientEngineView(
+                            recipeStore: store,
+                            engineStore: store.engineStore(for: id),
+                            recipeId: id,
+                            path: $path
+                        )
+                        
+                        
+                        
+                        
+
                     }
                 }
         }
