@@ -3,11 +3,20 @@ import Foundation
 final class IngredientEngineStore: ObservableObject {
     @Published var rows: [IngredientRow] = []
     
-    
+    //✅Engineから呼び出す仮データ　seedIfNeeded（必要に応じてタネを撒く）
     func seedIfNeeded() {
         if rows.isEmpty {
+            let block = IngredientBlock(
+                id: UUID(),
+                title: "合わせ調味料"
+            )
             rows = [
-                .single(.init(name: "Salt", amount: "1", unit: "tsp"))
+                .single(.init(name: "酒", amount: "15", unit: "ml")),
+                .single(.init(name: "醤油", amount: "15", unit: "ml")),
+                .blockHeader(block),
+                .blockItem(.init(name: "砂糖", amount: "1", unit: "tsp")),
+                .blockItem(.init(name: "塩", amount: "1", unit: "tsp")),
+                .single(.init(name: "塩", amount: "1", unit: "tsp"))
             ]
         }
     }

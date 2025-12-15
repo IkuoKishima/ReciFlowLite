@@ -35,7 +35,7 @@ struct IngredientEngineView: View {
                 .padding(.top, 12)
                 
                 
-                .onAppear { engineStore.seedIfNeeded() }
+                .onAppear { engineStore.seedIfNeeded() } //✅ScrollViewの LazyVStack の外側、ZStackに配置、一度だけEngineStoreデータを呼ぶ）
 
             }
 
@@ -58,32 +58,58 @@ struct IngredientEngineView: View {
     
     @ViewBuilder
     private func rowView(_ row: IngredientRow, index: Int) -> some View {
-        switch row {
+        Group {
+            switch row {
+                
+            case .single(let item):
+                HStack(spacing: 6) {
+                    
+                    Text(item.name.isEmpty ? " " : item.name)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    
+                    Text(item.amount)
+                        .frame(width: 64, alignment: .trailing)
+                    
+                    
+                    Text(item.unit)
+                        .frame(width: 42, alignment: .leading)
+                }
 
-        case .single(let item):
-            HStack(spacing: 10) {
-                Text(item.name.isEmpty ? " " : item.name)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(item.amount)
-                    .frame(width: 64, alignment: .trailing)
-
-                Text(item.unit)
-                    .frame(width: 42, alignment: .leading)
+                
+            case .blockHeader(let block):
+                HStack(spacing: 0) {
+                    IngredientBlockHeaderRowView(title: block.title.isEmpty ? "合わせ調味料" : block.title)
+                }
+                
+            case .blockItem(let item):
+                HStack(spacing: 4) {
+                    
+                    Text(item.name.isEmpty ? " " : item.name)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    
+                    Text(item.amount)
+                        .frame(width: 64, alignment: .trailing)
+                    
+                    
+                    Text(item.unit)
+                        .frame(width: 42, alignment: .leading)
+                }
+                .padding(.leading, 12) // ← ブロック内感だけ付ける（仮）
             }
-            .font(.body)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 48)         // ✅ 行ごとの高さ
-            .padding(.vertical, 6)        // ✅ 行間
-            .contentShape(Rectangle())    // ✅ 行全体当たり判定
-
-        case .blockHeader:
-            EmptyView()
-
-        case .blockItem:
-            EmptyView()
         }
+        //✅左に余白の最低保証を入れる時、全体をGroupで包んで、それに対してパディングをかける。ビューそのものにパディングはつけられない
+        //✅内部にいくつも書式を書かなくても、グループ内書式として共通化ができる
+        // ───── 行としての共通書式設定 ───── //Groupで囲った範囲内に適用されるため、コードを減らせて✅「可読性の向上」となる
+        .font(.body)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 36)
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .padding(.leading, 6)   // ← 左の最低保証（将来カラム用）
     }
+    
 
     
     
