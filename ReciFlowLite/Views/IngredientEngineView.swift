@@ -7,6 +7,9 @@ struct IngredientEngineView: View {
     @Binding var path: [Route]
     
     // MARK: - 書式定数の設置
+    
+    private let amountWidth: CGFloat = 64
+    private let unitWidth: CGFloat = 42
     private let leftGutterWidth: CGFloat = 18   // ← 仮。将来ここが「つまみ/ブラケット列」になる
     private let rowHeight: CGFloat = 36
     private let rowVPadding: CGFloat = 2
@@ -88,30 +91,26 @@ struct IngredientEngineView: View {
     
     
     //ここで表示するレコードの処理を配置する
-    //───── 行としての本体 ─────
+    //───── 行としての本体 ───── ✅冒頭定数設定で、amount/unit領域の調整は一元化
     @ViewBuilder
     private func contentForRow(_ row: IngredientRow) -> some View {
             switch row {
                 
             case .single(let item):
                 HStack(spacing: 6) {
-                    
                     Text(item.name.isEmpty ? " " : item.name)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    
                     Text(item.amount)
-                        .frame(width: 64, alignment: .trailing)
-                    
-                    
+                        .frame(width: amountWidth, alignment: .trailing)
                     Text(item.unit)
-                        .frame(width: 42, alignment: .leading)
+                        .frame(width: unitWidth, alignment: .leading)
                 }
 
                 
             case .blockHeader(let block):
                 HStack(spacing: 0) {
                     IngredientBlockHeaderRowView(title: block.title.isEmpty ? "合わせ調味料" : block.title)
+
                 }
                 
             case .blockItem(let item):
@@ -122,11 +121,11 @@ struct IngredientEngineView: View {
                     
                     
                     Text(item.amount)
-                        .frame(width: 64, alignment: .trailing)
+                        .frame(width: amountWidth, alignment: .trailing)
                     
                     
                     Text(item.unit)
-                        .frame(width: 42, alignment: .leading)
+                        .frame(width: unitWidth, alignment: .leading)
                 }
                 .padding(.leading, 12) // ← ブロック内感だけ付ける（仮）
             }
@@ -136,4 +135,22 @@ struct IngredientEngineView: View {
     
     
     //構造体の先端
+}
+
+// MARK: - 行の役割を明文化（今後の追加機能がrole基準で書ける）
+// ✅当たり判定・右レールドック干渉調整・編集時操作可不可分岐・ブラケット判定入り口全てで扱いやすくする
+
+enum RowRole {
+    case single
+    case blockHeader
+    case blockItem
+}
+extension IngredientRow {
+    var role: RowRole {
+        switch self {
+        case .single:      return .single
+        case .blockHeader: return .blockHeader
+        case .blockItem:   return .blockItem
+        }
+    }
 }

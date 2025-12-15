@@ -32,6 +32,7 @@
 		90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */; };
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
+		90BB74442EF032AF00F8F329 /* RowRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74432EF032AF00F8F329 /* RowRole.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +80,7 @@
 		90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEngineStore.swift; sourceTree = "<group>"; };
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
+		90BB74432EF032AF00F8F329 /* RowRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowRole.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -167,6 +169,7 @@
 		901486C22EEBB48F00B740F4 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				90BB74432EF032AF00F8F329 /* RowRole.swift */,
 				901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */,
 				9014872B2EEDF3A100B740F4 /* RootMemo.md */,
 				901487292EEDB1EA00B740F4 /* RightRailControls.swift */,
@@ -391,6 +394,7 @@
 				901486C62EEBB50100B740F4 /* IngredientBlock.swift in Sources */,
 				901486C82EEBB51400B740F4 /* IngredientItem.swift in Sources */,
 				90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */,
+				90BB74442EF032AF00F8F329 /* RowRole.swift in Sources */,
 				901486D42EEBB62D00B740F4 /* IngredientEngineView.swift in Sources */,
 				901486CA2EEBB52A00B740F4 /* Recipe.swift in Sources */,
 				901486CC2EEBB56E00B740F4 /* FocusRouter.swift in Sources */,

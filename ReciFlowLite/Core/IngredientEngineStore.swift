@@ -11,10 +11,10 @@ final class IngredientEngineStore: ObservableObject {
                 title: "合わせ調味料"
             )
             rows = [
-                .single(.init(name: "酒", amount: "15", unit: "ml")),
-                .single(.init(name: "醤油", amount: "15", unit: "ml")),
+                .single(.init(name: "酒", amount: "012345", unit: "ml")),
+                .single(.init(name: "醤油", amount: "15", unit: "0123")),
                 .blockHeader(block),
-                .blockItem(.init(name: "砂糖", amount: "1", unit: "tsp")),
+                .blockItem(.init(name: "砂糖", amount: "012345", unit: "0123")),
                 .blockItem(.init(name: "塩", amount: "1", unit: "tsp")),
                 .single(.init(name: "塩", amount: "1", unit: "tsp"))
             ]
