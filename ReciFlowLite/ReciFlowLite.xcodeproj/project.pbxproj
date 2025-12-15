@@ -33,6 +33,7 @@
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
 		90BB74442EF032AF00F8F329 /* RowRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74432EF032AF00F8F329 /* RowRole.swift */; };
+		90BB74462EF0C14200F8F329 /* EngineVIewMemo.md in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +82,7 @@
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
 		90BB74432EF032AF00F8F329 /* RowRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowRole.swift; sourceTree = "<group>"; };
+		90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EngineVIewMemo.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -203,6 +205,7 @@
 				9014872F2EEE333900B740F4 /* RecipeListMemo.md */,
 				901486D72EEBB65800B740F4 /* RecipeListView.swift */,
 				901486D52EEBB63300B740F4 /* RecipeEditView.swift */,
+				90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */,
 				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
 				901487372EEE790500B740F4 /* EngineMemo.md */,
 				901486D12EEBB5E000B740F4 /* ProcessEditView.swift */,
@@ -380,6 +383,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				90BB74462EF0C14200F8F329 /* EngineVIewMemo.md in Sources */,
 				901486CE2EEBB58B00B740F4 /* IngredientItemRowUIKitView.swift in Sources */,
 				90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */,
 				901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */,

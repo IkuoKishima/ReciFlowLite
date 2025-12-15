@@ -13,6 +13,14 @@ struct IngredientEngineView: View {
     private let leftGutterWidth: CGFloat = 18   // ← 仮。将来ここが「つまみ/ブラケット列」になる
     private let rowHeight: CGFloat = 36
     private let rowVPadding: CGFloat = 2
+    
+    // MARK: - デバッグ通知を一箇所にまとめ、ビルドに入らない#️⃣で扱う
+    private func debugRowTap(_ row: IngredientRow) {
+        #if DEBUG
+        print("[DEBUG][RowTap]", row.role)
+        #endif
+    }
+
 
     
 
@@ -66,14 +74,14 @@ struct IngredientEngineView: View {
 
     //✅ここはボディの外
     // MARK: - ここで書式設定を取りまとめ、以下のcontentForRowを「乗せる」事で責務分担、視認性の向上に伴い、後のコードが巨大化に備える
-    //───── 行としての共通書式設定 ─────
+    //───── 行としての共通書式設定(装飾スキン） ─────//
     @ViewBuilder
     private func rowView(for row: IngredientRow) -> some View {
 
         Group {
             HStack(spacing: 0) {
 
-                // ✅ 左ガター（将来の縦摘み列の予約席）
+                // ✅ 左ガター（余白）将来の縦摘み列の予約席
                 Color.clear
                     .frame(width: leftGutterWidth)
 
@@ -86,6 +94,13 @@ struct IngredientEngineView: View {
         .frame(minHeight: rowHeight)
         .padding(.vertical, rowVPadding)
         .contentShape(Rectangle())
+        //🎯当たり制御＋当たり判定
+        .allowsHitTesting(row.role != .blockHeader)
+        .onTapGesture {
+            debugRowTap(row)
+        }
+
+
     }
 
     

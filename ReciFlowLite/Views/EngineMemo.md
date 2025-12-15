@@ -1,3 +1,36 @@
+// Day7内容🟨当たり判定・右レールドック干渉調整・編集時操作可不可分岐・ブラケット判定入り口全てで扱いやすくする
+
+enum RowRole {
+    case single
+    case blockHeader
+    case blockItem
+}
+extension IngredientRow {
+    var role: RowRole {
+        switch self {
+        case .single:      return .single
+        case .blockHeader: return .blockHeader
+        case .blockItem:   return .blockItem
+        }
+    }
+}
+ここで同じ箇所の表示を一括りにすることで、
+        //🎯当たり制御＋当たり判定
+        .allowsHitTesting(row.role != .blockHeader)
+        .onTapGesture {
+            print("Tapped:", row.role)
+書式を担当する箇所で、「その行を触れた時の挙動」を制御できる
+ジェスチャー反応をデバッグ通知モニタリングできるようプリントコメントを出せばわかりやすい
+ヒットテスティングで「何が触れないか？」を決定づけられる
+.allowsHitTesting は、その行に対する 操作（ジェスチャー）の受け渡し自体を止めるスイッチ。
+表示は残したまま、挙動だけを role ベースで制御できる。
+
+
+
+
+
+
+
 Engineの視認性：絶対に削れないポイント
 1) ✅左右は“限界まで”使う
 　・行のコンテンツは maxWidth .infinity
