@@ -8,9 +8,16 @@ struct ContentView: View {
         NavigationStack(path: $path) {
             RecipeListView(store: store, path: $path)
                 .navigationDestination(for: Route.self) { route in
+                    
+                    
                     switch route {
+                        
                     case .edit(let id):
-                        RecipeEditView(store: store, recipeId: id, path: $path)
+                        RecipeEditView(
+                            store: store,
+                            recipeId: id,
+                            path: $path
+                        )
 
                     
                     //✅ここでエンジンビューを生成している

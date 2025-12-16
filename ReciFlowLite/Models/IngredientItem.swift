@@ -1,5 +1,21 @@
-//import Foundation
-//
+/// MARK: - IngredientItem.swift
+
+import Foundation
+
+struct IngredientItem: Identifiable, Equatable {
+    var id: UUID = UUID()
+
+    // ✅ DB保存に必要
+    var parentRecipeId: UUID
+    var parentBlockId: UUID? = nil   // ブロック外なら nil、ブロック内なら blockHeader の id
+    var orderIndex: Int = 0
+
+    // 入力
+    var name: String = ""
+    var amount: String = ""
+    var unit: String = ""
+}
+
 //struct IngredientItem: Identifiable, Equatable, Codable, Hashable {
 //    let id: UUID // 材料固有ID
 //    var name: String

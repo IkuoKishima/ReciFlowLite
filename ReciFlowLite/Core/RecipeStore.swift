@@ -5,35 +5,56 @@ import SwiftUI
 
 
 final class RecipeStore: ObservableObject {
+    // MARK: - Published State
     @Published var recipes: [Recipe] = []
+    @Published var isLoading: Bool = false
     
+    
+    
+    // MARK: - Caches
     private var engineStores: [UUID: IngredientEngineStore] = [:]
     
     // MARK: - 初期化
-
     init() {
-        recipes = DatabaseManager.shared.fetchAllRecipes()
-    }
+            loadRecipes()
+        }
 
+    
+    // MARK: - Public API
+    
+    //読み込み系API
+    func loadRecipes() {
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fetched = DatabaseManager.shared.fetchAllRecipes()
+            DispatchQueue.main.async {
+                self.recipes = fetched
+                self.isLoading = false
+            }
+        }
+        
+    }
+    
+    //参照系API
     func recipe(for id: UUID) -> Recipe? {
         recipes.first(where: { $0.id == id })
     }
 
-    @discardableResult
+    
     
     
     // MARK: - ファンクションの集まり
     
     //「engineStore辞書」を追加
     func engineStore(for recipeId: UUID) -> IngredientEngineStore {
-        if let s = engineStores[recipeId] { return s }
-        let s = IngredientEngineStore()
-        engineStores[recipeId] = s
-        return s
+        if let existing = engineStores[recipeId] { return existing }
+        let store = IngredientEngineStore(parentRecipeId: recipeId)
+        engineStores[recipeId] = store
+        return store
     }
     
     
-    
+    @discardableResult
     func addNewRecipeAndPersist() -> UUID {
         let now = Date()
         let title = "New" //足されるものに日付と時間を追加している

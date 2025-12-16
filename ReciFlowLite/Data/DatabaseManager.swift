@@ -1,6 +1,7 @@
 import Foundation
 import SQLite3
-import SQLite
+
+let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 final class DatabaseManager {
     static let shared = DatabaseManager()
@@ -246,3 +247,266 @@ final class DatabaseManager {
     }
 }
 
+
+extension DatabaseManager {
+
+    // rowKind: 0=single, 1=blockHeader, 2=blockItem
+    enum IngredientRowKind: Int32 {
+        case single = 0
+        case blockHeader = 1
+        case blockItem = 2
+    }
+
+    func createIngredientTablesIfNeeded() {
+        guard let db = db else { return }
+
+        let sql = """
+        CREATE TABLE IF NOT EXISTS ingredient_rows (
+            id TEXT PRIMARY KEY,
+            recipeId TEXT NOT NULL,
+            kind INTEGER NOT NULL,
+            orderIndex INTEGER NOT NULL,
+            blockId TEXT,
+            title TEXT,
+            name TEXT,
+            amount TEXT,
+            unit TEXT
+        );
+        """
+
+        queue.sync {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                defer { sqlite3_finalize(statement) }
+                if sqlite3_step(statement) != SQLITE_DONE {
+                    let errorMsg = String(cString: sqlite3_errmsg(db))
+                    print("❌ createIngredientTables error: \(errorMsg)")
+                }
+            } else {
+                let errorMsg = String(cString: sqlite3_errmsg(db))
+                print("❌ createIngredientTables prepare error: \(errorMsg)")
+            }
+        }
+    }
+
+    // MARK: - Public API
+
+    func fetchIngredientRows(recipeId: UUID) -> [IngredientRow] {
+        guard let db = db else { return [] }
+
+        let sql = """
+        SELECT id, kind, orderIndex, blockId, title, name, amount, unit
+        FROM ingredient_rows
+        WHERE recipeId = ?
+        ORDER BY orderIndex ASC;
+        """
+
+        var result: [IngredientRow] = []
+
+        queue.sync {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                defer { sqlite3_finalize(statement) }
+
+                sqlite3_bind_text(statement, 1, recipeId.uuidString, -1, SQLITE_TRANSIENT)
+
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    guard
+                        let idC = sqlite3_column_text(statement, 0),
+                        let kindC = sqlite3_column_int(statement, 1) as Int32?
+                    else { continue }
+
+                    let id = UUID(uuidString: String(cString: idC)) ?? UUID()
+                    let kind = IngredientRowKind(rawValue: kindC) ?? .single
+                    let orderIndex = Int(sqlite3_column_int(statement, 2))
+
+                    let blockIdStr: String? = {
+                        guard let c = sqlite3_column_text(statement, 3) else { return nil }
+                        let s = String(cString: c)
+                        return s.isEmpty ? nil : s
+                    }()
+
+                    let title: String = {
+                        guard let c = sqlite3_column_text(statement, 4) else { return "" }
+                        return String(cString: c)
+                    }()
+
+                    let name: String = {
+                        guard let c = sqlite3_column_text(statement, 5) else { return "" }
+                        return String(cString: c)
+                    }()
+
+                    let amount: String = {
+                        guard let c = sqlite3_column_text(statement, 6) else { return "" }
+                        return String(cString: c)
+                    }()
+
+                    let unit: String = {
+                        guard let c = sqlite3_column_text(statement, 7) else { return "" }
+                        return String(cString: c)
+                    }()
+
+                    switch kind {
+                    case .blockHeader:
+                        let block = IngredientBlock(
+                            id: id,
+                            parentRecipeId: recipeId,
+                            orderIndex: orderIndex,
+                            title: title
+                        )
+                        result.append(.blockHeader(block))
+
+                    case .single:
+                        let item = IngredientItem(
+                            id: id,
+                            parentRecipeId: recipeId,
+                            parentBlockId: nil,
+                            orderIndex: orderIndex,
+                            name: name,
+                            amount: amount,
+                            unit: unit
+                        )
+                        result.append(.single(item))
+
+                    case .blockItem:
+                        let pbid = blockIdStr.flatMap(UUID.init(uuidString:))
+                        let item = IngredientItem(
+                            id: id,
+                            parentRecipeId: recipeId,
+                            parentBlockId: pbid,
+                            orderIndex: orderIndex,
+                            name: name,
+                            amount: amount,
+                            unit: unit
+                        )
+                        result.append(.blockItem(item))
+                    }
+                }
+            } else {
+                let errorMsg = String(cString: sqlite3_errmsg(db))
+                print("❌ fetchIngredientRows prepare error: \(errorMsg)")
+            }
+        }
+
+        return result
+    }
+
+    /// v1：安全第一。全部置き換え（delete → insert）
+    func replaceIngredientRows(recipeId: UUID, rows: [IngredientRow]) {
+        guard let db = db else { return }
+
+        queue.sync {
+            // トランザクションで一括確定（途中落ちでも中途半端になりにくい）
+            sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION;", nil, nil, nil)
+            defer { sqlite3_exec(db, "COMMIT;", nil, nil, nil) }
+
+            // 1) delete
+            do {
+                let delSQL = "DELETE FROM ingredient_rows WHERE recipeId = ?;"
+                var delStmt: OpaquePointer?
+                if sqlite3_prepare_v2(db, delSQL, -1, &delStmt, nil) == SQLITE_OK {
+                    defer { sqlite3_finalize(delStmt) }
+                    sqlite3_bind_text(delStmt, 1, recipeId.uuidString, -1, SQLITE_TRANSIENT)
+                    if sqlite3_step(delStmt) != SQLITE_DONE {
+                        let errorMsg = String(cString: sqlite3_errmsg(db))
+                        print("❌ replaceIngredientRows delete error: \(errorMsg)")
+                    }
+                }
+            }
+
+            // 2) insert
+            let insSQL = """
+            INSERT INTO ingredient_rows
+            (id, recipeId, kind, orderIndex, blockId, title, name, amount, unit)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+
+            var insStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, insSQL, -1, &insStmt, nil) == SQLITE_OK {
+                defer { sqlite3_finalize(insStmt) }
+
+                for (index, row) in rows.enumerated() {
+                    // orderIndex は現在の配列順を正とする
+                    let orderIndex = index
+
+                    let id: UUID
+                    let kind: IngredientRowKind
+                    var blockId: String? = nil
+                    var title: String? = nil
+                    var name: String? = nil
+                    var amount: String? = nil
+                    var unit: String? = nil
+
+                    switch row {
+                    case .single(let item):
+                        id = item.id
+                        kind = .single
+                        name = item.name
+                        amount = item.amount
+                        unit = item.unit
+
+                    case .blockHeader(let block):
+                        id = block.id
+                        kind = .blockHeader
+                        // header自身の blockId は nil でOK（復元は kind で判定する）
+                        title = block.title
+
+                    case .blockItem(let item):
+                        id = item.id
+                        kind = .blockItem
+                        blockId = item.parentBlockId?.uuidString
+                        name = item.name
+                        amount = item.amount
+                        unit = item.unit
+                    }
+
+                    sqlite3_reset(insStmt)
+                    sqlite3_clear_bindings(insStmt)
+
+                    sqlite3_bind_text(insStmt, 1, id.uuidString, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(insStmt, 2, recipeId.uuidString, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_int(insStmt, 3, kind.rawValue)
+                    sqlite3_bind_int(insStmt, 4, Int32(orderIndex))
+
+                    if let blockId {
+                        sqlite3_bind_text(insStmt, 5, blockId, -1, SQLITE_TRANSIENT)
+                    } else {
+                        sqlite3_bind_null(insStmt, 5)
+                    }
+
+                    if let title {
+                        sqlite3_bind_text(insStmt, 6, title, -1, SQLITE_TRANSIENT)
+                    } else {
+                        sqlite3_bind_null(insStmt, 6)
+                    }
+
+                    if let name {
+                        sqlite3_bind_text(insStmt, 7, name, -1, SQLITE_TRANSIENT)
+                    } else {
+                        sqlite3_bind_null(insStmt, 7)
+                    }
+
+                    if let amount {
+                        sqlite3_bind_text(insStmt, 8, amount, -1, SQLITE_TRANSIENT)
+                    } else {
+                        sqlite3_bind_null(insStmt, 8)
+                    }
+
+                    if let unit {
+                        sqlite3_bind_text(insStmt, 9, unit, -1, SQLITE_TRANSIENT)
+                    } else {
+                        sqlite3_bind_null(insStmt, 9)
+                    }
+
+                    if sqlite3_step(insStmt) != SQLITE_DONE {
+                        let errorMsg = String(cString: sqlite3_errmsg(db))
+                        print("❌ replaceIngredientRows insert error: \(errorMsg)")
+                    }
+                }
+            } else {
+                let errorMsg = String(cString: sqlite3_errmsg(db))
+                print("❌ replaceIngredientRows prepare error: \(errorMsg)")
+            }
+        }
+    }
+}

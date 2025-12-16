@@ -32,8 +32,8 @@
 		90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */; };
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
-		90BB74442EF032AF00F8F329 /* RowRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74432EF032AF00F8F329 /* RowRole.swift */; };
-		90BB74462EF0C14200F8F329 /* EngineVIewMemo.md in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */; };
+		90BB74462EF0C14200F8F329 /* Rap.md in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74452EF0C12400F8F329 /* Rap.md */; };
+		90BB74482EF0E77A00F8F329 /* HowTo.txt in Resources */ = {isa = PBXBuildFile; fileRef = 90BB74472EF0E77A00F8F329 /* HowTo.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,8 +81,8 @@
 		90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEngineStore.swift; sourceTree = "<group>"; };
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
-		90BB74432EF032AF00F8F329 /* RowRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowRole.swift; sourceTree = "<group>"; };
-		90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EngineVIewMemo.md; sourceTree = "<group>"; };
+		90BB74452EF0C12400F8F329 /* Rap.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Rap.md; sourceTree = "<group>"; };
+		90BB74472EF0E77A00F8F329 /* HowTo.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = HowTo.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -171,11 +171,10 @@
 		901486C22EEBB48F00B740F4 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				90BB74432EF032AF00F8F329 /* RowRole.swift */,
 				901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */,
-				9014872B2EEDF3A100B740F4 /* RootMemo.md */,
 				901487292EEDB1EA00B740F4 /* RightRailControls.swift */,
 				901487272EED257F00B740F4 /* Route.swift */,
+				9014872B2EEDF3A100B740F4 /* RootMemo.md */,
 				901486C92EEBB52000B740F4 /* Recipe.swift */,
 				901487312EEE3CF300B740F4 /* RecipeMemo.md */,
 				901486C72EEBB50800B740F4 /* IngredientItem.swift */,
@@ -191,6 +190,7 @@
 				90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */,
 				9014872D2EEDFE5D00B740F4 /* RecipeStoreMemo.md */,
 				901486CF2EEBB5A600B740F4 /* RecipeStore.swift */,
+				90BB74472EF0E77A00F8F329 /* HowTo.txt */,
 				901486CD2EEBB57400B740F4 /* IngredientItemRowUIKitView.swift */,
 				901486CB2EEBB55800B740F4 /* FocusRouter.swift */,
 			);
@@ -205,7 +205,7 @@
 				9014872F2EEE333900B740F4 /* RecipeListMemo.md */,
 				901486D72EEBB65800B740F4 /* RecipeListView.swift */,
 				901486D52EEBB63300B740F4 /* RecipeEditView.swift */,
-				90BB74452EF0C12400F8F329 /* EngineVIewMemo.md */,
+				90BB74452EF0C12400F8F329 /* Rap.md */,
 				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
 				901487372EEE790500B740F4 /* EngineMemo.md */,
 				901486D12EEBB5E000B740F4 /* ProcessEditView.swift */,
@@ -359,6 +359,7 @@
 				901487302EEE335F00B740F4 /* RecipeListMemo.md in Resources */,
 				901487322EEE3D1400B740F4 /* RecipeMemo.md in Resources */,
 				9014872C2EEDF3BB00B740F4 /* RootMemo.md in Resources */,
+				90BB74482EF0E77A00F8F329 /* HowTo.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -383,7 +384,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				90BB74462EF0C14200F8F329 /* EngineVIewMemo.md in Sources */,
+				90BB74462EF0C14200F8F329 /* Rap.md in Sources */,
 				901486CE2EEBB58B00B740F4 /* IngredientItemRowUIKitView.swift in Sources */,
 				90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */,
 				901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */,
@@ -398,7 +399,6 @@
 				901486C62EEBB50100B740F4 /* IngredientBlock.swift in Sources */,
 				901486C82EEBB51400B740F4 /* IngredientItem.swift in Sources */,
 				90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */,
-				90BB74442EF032AF00F8F329 /* RowRole.swift in Sources */,
 				901486D42EEBB62D00B740F4 /* IngredientEngineView.swift in Sources */,
 				901486CA2EEBB52A00B740F4 /* Recipe.swift in Sources */,
 				901486CC2EEBB56E00B740F4 /* FocusRouter.swift in Sources */,

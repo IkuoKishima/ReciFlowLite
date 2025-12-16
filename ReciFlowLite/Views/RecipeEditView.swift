@@ -7,8 +7,20 @@ struct RecipeEditView: View {
 
     @State private var title: String = ""
     @State private var memo: String = ""
+    
+#if DEBUG
+private static func _debugBodyTick() -> Bool {
+    print("[DEBUG] Edit body tick")
+    return true
+}
+#endif
+
 
     var body: some View {
+#if DEBUG
+let _ = Self._debugBodyTick()
+#endif
+
         let recipe = store.recipe(for: recipeId)
 
         VStack(alignment: .leading, spacing: 12) {
@@ -42,6 +54,9 @@ struct RecipeEditView: View {
         .padding(16)
         .navigationTitle("概要")
         .onAppear {
+          #if DEBUG
+          print("[DEBUG] Edit onAppear start")
+          #endif
             // 初期表示に反映
             if let r = recipe {
                 title = r.title

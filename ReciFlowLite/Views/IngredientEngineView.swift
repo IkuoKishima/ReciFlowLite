@@ -51,9 +51,15 @@ struct IngredientEngineView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
+                .onAppear {
+                    engineStore.loadIfNeeded()
+                }
+                .onDisappear {
+                    engineStore.saveNow()
+                }
+
                 
-                
-                .onAppear { engineStore.seedIfNeeded() } //✅ScrollViewの LazyVStack の外側、ZStackに配置、一度だけEngineStoreデータを呼ぶ）
+//                .onAppear { engineStore.seedIfNeeded() } //✅ScrollViewの LazyVStack の外側、ZStackに配置、一度だけEngineStoreデータを呼ぶ）
 
             }
 
@@ -107,7 +113,7 @@ struct IngredientEngineView: View {
     
     //ここで表示するレコードの処理を配置する
     //───── 行としての本体 ───── ✅冒頭定数設定で、amount/unit領域の調整は一元化
-    @ViewBuilder
+    @ViewBuilder //これらは、弁当箱屋さんのように入れ物専門で作る機能、どこに何が幾つはいるかを生成している
     private func contentForRow(_ row: IngredientRow) -> some View {
             switch row {
                 

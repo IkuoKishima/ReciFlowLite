@@ -8,7 +8,14 @@ struct RecipeListView: View {
         List {
             ForEach(store.recipes) { recipe in
                 Button {
+#if DEBUG
+   let t0 = CFAbsoluteTimeGetCurrent()
+   print("[DEBUG] tap row start", recipe.id)
+   #endif
                     path.append(.edit(recipe.id))
+#if DEBUG
+   print("[DEBUG] tap row end", CFAbsoluteTimeGetCurrent() - t0)
+   #endif
                 } label: {
                     HStack(spacing: 0) {
                         VStack(alignment: .leading, spacing: 4) {
