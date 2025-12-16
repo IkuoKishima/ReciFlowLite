@@ -200,14 +200,14 @@
 		901486C42EEBB4AB00B740F4 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
+				901486D52EEBB63300B740F4 /* RecipeEditView.swift */,
+				901486D72EEBB65800B740F4 /* RecipeListView.swift */,
+				901487372EEE790500B740F4 /* EngineMemo.md */,
 				90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */,
 				901487332EEE3EFF00B740F4 /* Day4.md */,
 				9014872F2EEE333900B740F4 /* RecipeListMemo.md */,
-				901486D72EEBB65800B740F4 /* RecipeListView.swift */,
-				901486D52EEBB63300B740F4 /* RecipeEditView.swift */,
 				90BB74452EF0C12400F8F329 /* Rap.md */,
-				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
-				901487372EEE790500B740F4 /* EngineMemo.md */,
 				901486D12EEBB5E000B740F4 /* ProcessEditView.swift */,
 			);
 			path = Views;

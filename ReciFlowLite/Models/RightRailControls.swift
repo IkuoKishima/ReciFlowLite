@@ -1,4 +1,5 @@
 //ドックの代わりを担う共通部品
+
 import SwiftUI
 
 struct RightRailControls: View {
@@ -10,12 +11,17 @@ struct RightRailControls: View {
     let mode: Mode
 
     // ボタンアクション
+    
+    var showsDelete: Bool = false// ✅ Deleteは「使う画面だけ」ON
+    let isDeleteMode: Bool // ✅ 追加：削除モード
+    let onToggleDelete: () -> Void // 🗑️
     let onPrimary: () -> Void   // > or <
     let onHome: () -> Void      // 🔳
 
     // レールスワイプ
     let onSwipeLeft: () -> Void
     let onSwipeRight: () -> Void
+    
 
     private let railWidth: CGFloat = 56 // 28数字を減らすと右のスワイプレールが狭くなるが反応が鈍る
     private let buttonSize: CGFloat = 54
@@ -44,6 +50,17 @@ struct RightRailControls: View {
 
                 // ───────── 右端55〜60%：縦2段ボタン ─────────
                 VStack(spacing: 10) {
+                    
+                    // 🗑 削除モード切替
+                    if showsDelete {
+                        Button(action: onToggleDelete) {
+                            Image(systemName: isDeleteMode ? "minus.circle.fill" : "minus.circle")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                    }
                     
                     //このボタン押したよーだけを知っている、ボタンデザインの記述
                     Button(action: onPrimary) {

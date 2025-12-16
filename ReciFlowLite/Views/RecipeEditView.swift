@@ -8,6 +8,9 @@ struct RecipeEditView: View {
     @State private var title: String = ""
     @State private var memo: String = ""
     
+    
+    @State private var isDeleteMode = false
+    
 #if DEBUG
 private static func _debugBodyTick() -> Bool {
     print("[DEBUG] Edit body tick")
@@ -75,15 +78,12 @@ let _ = Self._debugBodyTick()
         .overlay {
             RightRailControls(
                 mode: .forward,
-                onPrimary: {
-                    path.append(.engine(recipeId))      // > でも進める
-                },
-                onHome: {
-                    path = []                           // 🔳 でリストへ
-                },
-                onSwipeLeft: {
-                    path.append(.engine(recipeId))      // 右→左で進む
-                },
+                showsDelete: false,
+                isDeleteMode: isDeleteMode,
+                onToggleDelete: { isDeleteMode.toggle() },
+                onPrimary: {path.append(.engine(recipeId))},    // > でも進める
+                onHome: {path = []},                           // 🔳 でリストへ
+                onSwipeLeft: {path.append(.engine(recipeId))},      // 右→左で進む
                 onSwipeRight: {
                     // Editで右スワイプは何もしない（誤爆防止）
                 }

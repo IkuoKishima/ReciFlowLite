@@ -1,3 +1,5 @@
+//🟨 ここを司令塔にする(状態を持っているのはここ、Viewは参照しているだけ）
+
 import Foundation
 
 final class IngredientEngineStore: ObservableObject {
@@ -9,37 +11,64 @@ final class IngredientEngineStore: ObservableObject {
         self.parentRecipeId = parentRecipeId
     }
 
+    // MARK: - 読込
+    
     func loadIfNeeded() {
         if !rows.isEmpty { return }
-        let block = IngredientBlock(
-            parentRecipeId: parentRecipeId,
-            orderIndex: 2,
-            title: "合わせ調味料"
-        )
 
         DatabaseManager.shared.createIngredientTablesIfNeeded()
 
         let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
         if !loaded.isEmpty {
             rows = loaded
-        } else {
-            // v1: 初回だけ最小の種（空でもOKならここ消してOK）
-            rows = [
-                .single(.init(parentRecipeId: parentRecipeId, name: "酒", amount: "012345", unit: "ml")),
-                .single(.init(parentRecipeId: parentRecipeId, name: "醤油", amount: "15", unit: "0123")),
-                .blockHeader( block),
-                .blockItem(.init(parentRecipeId: parentRecipeId, name: "砂糖", amount: "012345", unit: "0123")),
-                .blockItem(.init(parentRecipeId: parentRecipeId, name: "塩", amount: "1", unit: "tsp")),
-                .single(.init(parentRecipeId: parentRecipeId, name: "塩", amount: "1", unit: "tsp")),
-                .single(.init(parentRecipeId: parentRecipeId, name: "", amount: "", unit: ""))
-            ]
+            return
         }
+
+        // v1: 初回だけ最小の種
+        let block = IngredientBlock(
+            parentRecipeId: parentRecipeId,
+            orderIndex: 2,
+            title: "合わせ調味料"
+        )
+
+        rows = [
+            .single(.init(parentRecipeId: parentRecipeId, name: "酒", amount: "012345", unit: "ml")),
+            .single(.init(parentRecipeId: parentRecipeId, name: "醤油", amount: "15", unit: "0123")),
+
+            .blockHeader(block),
+
+            .blockItem(.init(
+                parentRecipeId: parentRecipeId,
+                parentBlockId: block.id,     // ✅ 束に属する
+                name: "砂糖", amount: "012345", unit: "0123"
+            )),
+            .blockItem(.init(
+                parentRecipeId: parentRecipeId,
+                parentBlockId: block.id,     // ✅ 束に属する
+                name: "塩", amount: "1", unit: "tsp"
+            )),
+
+            .single(.init(parentRecipeId: parentRecipeId, name: "塩", amount: "1", unit: "tsp")),
+            .single(.init(parentRecipeId: parentRecipeId, name: "", amount: "", unit: ""))
+        ]
     }
 
+
+    // MARK: - 保存
+    
     func saveNow() {
         DatabaseManager.shared.createIngredientTablesIfNeeded()
-        DatabaseManager.shared.replaceIngredientRows(recipeId: parentRecipeId, rows: rows)
+        DatabaseManager.shared.replaceIngredientRows(
+            recipeId: parentRecipeId,
+            rows: rows
+        )
+        //保存した責任側がログを出す方が好まれる書き方
+        #if DEBUG
+        print("✅ saved \(rows.count) rows")
+        #endif
     }
+    
+   
 }
 
 
