@@ -94,31 +94,51 @@ struct IngredientEngineView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    
+                    
+                    
                     // ✅ ここからが “single 、EngineStoreを参照して表示するから、engineStore.rows)
                     let indexedRows = Array(engineStore.rows.enumerated())
 
                     ForEach(indexedRows, id: \.element.id) { index, row in
-                        rowView(for: row)
-                            .contentShape(Rectangle())   // 行全体タップを安定させる
-                            .onTapGesture {
-                                debugRowTap(row)
+                        HStack(spacing: 8) {
 
-                                if isDeleteMode {
+                            // 🔴 削除モードの時だけ出す
+                            if isDeleteMode {
+                                Button {
                                     switch row {
                                     case .single(let item), .blockItem(let item):
                                         engineStore.deleteRow(itemId: item.id)
                                     case .blockHeader(let block):
                                         engineStore.deleteBlock(blockId: block.id)
                                     }
-                                } else {
-                                    // ✅ ここが今回の目的：追加の基準行を記録
-                                    selectedIndex = index
-                                    #if DEBUG
-                                    print("🎯 selectedIndex=\(index) role=\(row.role)")
-                                    #endif
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(.red)
+                                        .frame(width: 28, height: 28)
                                 }
+                                .buttonStyle(.plain)
+                            } else {
+                                // レイアウト固定用（行のガタつき防止）
+                                Color.clear.frame(width: 28, height: 28)
                             }
+
+                            rowView(for: row)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // ✅ 削除モード中はボタンで削除。行タップは無効。
+                            guard !isDeleteMode else { return }
+
+                            selectedIndex = index
+                            #if DEBUG
+                            print("🎯 selectedIndex=\(index) role=\(row.role)")
+                            #endif
+                        }
                     }
+                    .animation(.snappy, value: isDeleteMode)
 
                     
                     
@@ -127,6 +147,8 @@ struct IngredientEngineView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
+                .padding(.trailing, 64) // ✅ 右レール干渉回避
+                
                 .onAppear {
                     engineStore.loadIfNeeded() // 画面に入ったら読み込み
                 }
@@ -163,10 +185,8 @@ struct IngredientEngineView: View {
                     selectedIndex = inserted
                 },
                 // ✅ ひとまず onPrimary を「＋」に割り当て（最短で追加が動く）
-                onPrimary: {
-                    let inserted = engineStore.addSingle(after: selectedIndex)
-                    selectedIndex = inserted
-                        },
+                onPrimary: { if !path.isEmpty { path.removeLast() } },
+
                 onHome: { path = [] },
                 onSwipeLeft: { },
                 onSwipeRight: { if !path.isEmpty { path.removeLast() } }
