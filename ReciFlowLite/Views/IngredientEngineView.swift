@@ -59,6 +59,10 @@ struct IngredientEngineView: View {
                 
                 .onDisappear {
                     engineStore.saveNow() // 画面から出たら保存・ログはEngineStoreに配置する
+                    engineStore.rows.removeAll() // これで次回はDBから読む
+                #if DEBUG
+                    print("✅ saved & cleared \(engineStore.rows.count) rows")
+                #endif
                 }
 
 
@@ -87,6 +91,13 @@ struct IngredientEngineView: View {
 
     //✅ここはボディの外
     // MARK: - 書式設定、以下のcontentForRowを「乗せる」事で責務分担、視認性の向上に伴い、後のコードが巨大化に備える
+
+    //🎯.allowsHitTestingの処理を見やすくするためここに設置（削除モードの時だけ触れる）
+    private func isRowHittable(_ row: IngredientRow) -> Bool {
+        if isDeleteMode { return true }
+        return row.role != .blockHeader
+    }
+    
     //───── 行としての共通書式設定(装飾スキン） ─────//
     @ViewBuilder
     private func rowView(for row: IngredientRow) -> some View {
@@ -107,27 +118,23 @@ struct IngredientEngineView: View {
         .frame(minHeight: rowHeight)
         .padding(.vertical, rowVPadding)
         .contentShape(Rectangle())
-        //🎯当たり制御＋当たり判定
-        .allowsHitTesting(row.role != .blockHeader)
+        //🎯当たり制御＋当たり判定（削除モードの時だけ触れる）
+        .allowsHitTesting(isRowHittable(row))
+        
         .onTapGesture {
             debugRowTap(row)
-            
-        }
-        .onTapGesture {
+
             guard isDeleteMode else { return }
 
             switch row {
-            case .single(let item):
-                engineStore.deleteSingle(itemId: item.id)
+            case .single(let item),
+                 .blockItem(let item):
+                engineStore.deleteRow(itemId: item.id)
+
             case .blockHeader(let block):
                 engineStore.deleteBlock(blockId: block.id)
-            case .blockItem(let item):
-                engineStore.deleteBlockItem(itemId: item.id)
             }
         }
-
-
-
 
     }
 
@@ -193,21 +200,16 @@ extension IngredientEngineStore {
         }
     }
 
-    func deleteSingle(itemId: UUID) {
-        rows.removeAll { row in
-            if case .single(let item) = row {
-                return item.id == itemId
-            }
-            return false
-        }
-    }
 
-    func deleteBlockItem(itemId: UUID) {
+
+    func deleteRow(itemId: UUID) {
         rows.removeAll { row in
-            if case .blockItem(let item) = row {
+            switch row {
+            case .single(let item), .blockItem(let item):
                 return item.id == itemId
+            default:
+                return false
             }
-            return false
         }
     }
 }

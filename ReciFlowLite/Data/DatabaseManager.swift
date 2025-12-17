@@ -348,6 +348,14 @@ extension DatabaseManager {
 
                     switch kind {
                     case .blockHeader:
+                        #if DEBUG
+                        print("""
+                        🧩 blockHeader loaded
+                           blockId: \(id)
+                           title: \(title)
+                        """)
+                        #endif
+
                         let block = IngredientBlock(
                             id: id,
                             parentRecipeId: recipeId,
@@ -355,6 +363,7 @@ extension DatabaseManager {
                             title: title
                         )
                         result.append(.blockHeader(block))
+
 
                     case .single:
                         let item = IngredientItem(
@@ -370,6 +379,16 @@ extension DatabaseManager {
 
                     case .blockItem:
                         let pbid = blockIdStr.flatMap(UUID.init(uuidString:))
+
+                        #if DEBUG
+                        print("""
+                        🧱 blockItem loaded
+                           itemId: \(id)
+                           parentBlockId: \(pbid?.uuidString ?? "nil")
+                           name: \(name)
+                        """)
+                        #endif
+
                         let item = IngredientItem(
                             id: id,
                             parentRecipeId: recipeId,
@@ -380,6 +399,7 @@ extension DatabaseManager {
                             unit: unit
                         )
                         result.append(.blockItem(item))
+
                     }
                 }
             } else {

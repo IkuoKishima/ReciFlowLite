@@ -14,11 +14,28 @@ final class IngredientEngineStore: ObservableObject {
     // MARK: - 読込
     
     func loadIfNeeded() {
-        if !rows.isEmpty { return }
+        #if DEBUG
+        print("🟦 loadIfNeeded start recipeId=\(parentRecipeId)")
+        #endif
+
+        if !rows.isEmpty {
+            #if DEBUG
+            print("🟦 loadIfNeeded early return (rows already exist) count=\(rows.count)")
+            #endif
+            return
+        }
 
         DatabaseManager.shared.createIngredientTablesIfNeeded()
 
+        #if DEBUG
+        print("🟦 fetchIngredientRows start")
+        #endif
+
         let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+
+        #if DEBUG
+        print("🟦 fetchIngredientRows end count=\(loaded.count)")
+        #endif
         if !loaded.isEmpty {
             rows = loaded
             return

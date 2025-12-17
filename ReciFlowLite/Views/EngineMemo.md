@@ -1,3 +1,23 @@
+✅ ブロックをブロックたらしめているのは「束IDのあるなし」
+ただし、その束IDは「blockItemの parentBlockId が nil かどうか」で決まる。
+超短い再定義
+　・single　　 　：parentBlockId == nil 　　　の IngredientItem
+　・blockItem　 ：parentBlockId == block.id の IngredientItem
+　・blockHeader ：IngredientBlock（束の代表。id が束ID）
+　
+⚠️束が一緒に消える条件は deleteBlock(blockId:) の中身がこうなっていること：
+　.blockHeader(id　　　　　　  == blockId) を消す
+　.blockItem　(parentBlockId == blockId) も消す ←これが“束”
+
+つまり「見えるようになった」からじゃなくて、
+削除ロジックが “親IDで子を辿る” ルールを持ったから。
+
+
+
+
+
+
+
 // Day7内容🟨当たり判定・右レールドック干渉調整・編集時操作可不可分岐・ブラケット判定入り口全てで扱いやすくする
 
 enum RowRole {

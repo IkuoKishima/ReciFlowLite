@@ -82,8 +82,8 @@ let _ = Self._debugBodyTick()
                 isDeleteMode: isDeleteMode,
                 onToggleDelete: { isDeleteMode.toggle() },
                 onPrimary: {path.append(.engine(recipeId))},    // > でも進める
-                onHome: {path = []},                           // 🔳 でリストへ
-                onSwipeLeft: {path.append(.engine(recipeId))},      // 右→左で進む
+                onHome: {path = []},                                // 🔳 でリストへ
+                onSwipeLeft: {path.append(.engine(recipeId))},  // 右→左で進む
                 onSwipeRight: {
                     // Editで右スワイプは何もしない（誤爆防止）
                 }
