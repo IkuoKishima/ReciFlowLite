@@ -79,8 +79,14 @@ let _ = Self._debugBodyTick()
             RightRailControls(
                 mode: .forward,
                 showsDelete: false,
+                showsAdd: false,              // ✅ 追加ボタンは非表示
+                
                 isDeleteMode: isDeleteMode,
                 onToggleDelete: { isDeleteMode.toggle() },
+                // 使わないので空でOK（呼ばれない）
+                onAddSingle: { },
+                onAddBlock: { },
+                
                 onPrimary: {path.append(.engine(recipeId))},    // > でも進める
                 onHome: {path = []},                                // 🔳 でリストへ
                 onSwipeLeft: {path.append(.engine(recipeId))},  // 右→左で進む

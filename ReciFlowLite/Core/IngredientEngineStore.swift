@@ -87,6 +87,142 @@ final class IngredientEngineStore: ObservableObject {
     
    
 }
+// MARK: - 追加API（v15準拠：入力で増えない / 追加はドック起点）
+
+extension IngredientEngineStore {
+
+    /// rows配列の安全な「挿入先index」を作る
+    /// - after: nil なら末尾、指定があれば「その直後」に挿入
+    private func insertionIndex(after index: Int?) -> Int {
+        guard let index else { return rows.count }
+        let next = index + 1
+        return min(max(next, 0), rows.count)
+    }
+
+    /// rows配列順 = orderIndex を必ず成立させる
+    private func reindexAll() {
+        for i in rows.indices {
+            switch rows[i] {
+            case .single(var item):
+                item.orderIndex = i
+                rows[i] = .single(item)
+
+            case .blockItem(var item):
+                item.orderIndex = i
+                rows[i] = .blockItem(item)
+
+            case .blockHeader(var block):
+                block.orderIndex = i
+                rows[i] = .blockHeader(block)
+            }
+        }
+    }
+
+    /// 指定ブロックの「ブロック内末尾の index」を返す（無ければ header の index）
+    private func lastIndexInBlock(blockId: UUID) -> Int? {
+        var last: Int? = nil
+        for (i, row) in rows.enumerated() {
+            if case .blockItem(let item) = row, item.parentBlockId == blockId {
+                last = i
+            }
+        }
+        if let last { return last }
+
+        // blockItem が無いなら blockHeader の位置にフォールバック
+        for (i, row) in rows.enumerated() {
+            if case .blockHeader(let block) = row, block.id == blockId {
+                return i
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Public API
+
+    /// ＋：single を追加（追加位置は「タップ行の直後」／nilなら末尾）
+    /// - Returns: 挿入された rows index（フォーカス合わせに使える）
+    @discardableResult
+    func addSingle(after index: Int?) -> Int {
+        let insertAt = insertionIndex(after: index)
+
+        let newItem = IngredientItem(
+            parentRecipeId: parentRecipeId,
+            parentBlockId: nil,
+            orderIndex: 0,
+            name: "",
+            amount: "",
+            unit: ""
+        )
+
+        rows.insert(.single(newItem), at: insertAt)
+        reindexAll()
+
+        #if DEBUG
+        print("✅ addSingle insertAt=\(insertAt) rows=\(rows.count)")
+        #endif
+
+        return insertAt
+    }
+
+    /// 2x2：blockHeader + 初期 blockItem を追加（2行挿入）
+    /// - Returns: 初期 blockItem の rows index（フォーカス合わせに使える）
+    @discardableResult
+    func addBlock(after index: Int?) -> Int {
+        let headerAt = insertionIndex(after: index)
+
+        let block = IngredientBlock(
+            parentRecipeId: parentRecipeId,
+            orderIndex: 0,
+            title: "合わせ調味料"
+        )
+
+        rows.insert(.blockHeader(block), at: headerAt)
+        reindexAll()
+
+        #if DEBUG
+        print("✅ addBlock(header only) headerAt=\(headerAt) blockId=\(block.id)")
+        #endif
+
+        return headerAt
+    }
+
+    /// block内＋：指定 blockId の配下に blockItem を追加
+    /// - after: nil なら「そのブロックの末尾」に追加（推奨・事故りにくい）
+    /// - Returns: 挿入された rows index
+    @discardableResult
+    func addBlockItem(blockId: UUID, after indexInBlock: Int? = nil) -> Int {
+        // 基本は「ブロック末尾」に追加
+        var baseIndex: Int? = lastIndexInBlock(blockId: blockId)
+
+        // もし「ブロック内の任意行直後」を使いたいなら上書き
+        if let idx = indexInBlock, rows.indices.contains(idx) {
+            // 指定行が同じブロックの blockItem ならその直後
+            if case .blockItem(let item) = rows[idx], item.parentBlockId == blockId {
+                baseIndex = idx
+            }
+        }
+
+        let insertAt = insertionIndex(after: baseIndex)
+
+        let newItem = IngredientItem(
+            parentRecipeId: parentRecipeId,
+            parentBlockId: blockId,
+            orderIndex: 0,
+            name: "",
+            amount: "",
+            unit: ""
+        )
+
+        rows.insert(.blockItem(newItem), at: insertAt)
+        reindexAll()
+
+        #if DEBUG
+        print("✅ addBlockItem blockId=\(blockId) insertAt=\(insertAt) rows=\(rows.count)")
+        #endif
+
+        return insertAt
+    }
+}
 
 
 //import Foundation

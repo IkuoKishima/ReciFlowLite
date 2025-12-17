@@ -1,4 +1,4 @@
-//ドックの代わりを担う共通部品
+//ドックの代わりを担う共通部品📝ここは秘密にはならない箇所
 
 import SwiftUI
 
@@ -13,8 +13,15 @@ struct RightRailControls: View {
     // ボタンアクション
     
     var showsDelete: Bool = false// ✅ Deleteは「使う画面だけ」ON
+    var showsAdd: Bool = true
+
+    
     let isDeleteMode: Bool // ✅ 追加：削除モード
     let onToggleDelete: () -> Void // 🗑️
+    
+    // ✅ 追加
+    let onAddSingle: () -> Void   // ＋
+    let onAddBlock: () -> Void    // 2x2
     let onPrimary: () -> Void   // > or <
     let onHome: () -> Void      // 🔳
 
@@ -60,6 +67,28 @@ struct RightRailControls: View {
                                 .background(.ultraThinMaterial)
                                 .clipShape(Circle())
                         }
+                    }
+                    
+                    // ✅ ＋ single追加
+                    if showsAdd {
+                        Button(action: onAddSingle) {
+                            Image(systemName: "plus")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        
+                        // ✅ 2x2 blockHeader追加
+                        Button(action: onAddBlock) {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
                     }
                     
                     //このボタン押したよーだけを知っている、ボタンデザインの記述

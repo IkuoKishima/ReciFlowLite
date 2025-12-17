@@ -7,6 +7,8 @@ struct IngredientEngineView: View {
     @Binding var path: [Route]
     
     @State private var isDeleteMode = false
+    @State private var selectedIndex: Int? = nil
+
 
     
     // MARK: - 書式定数の設置
@@ -23,8 +25,58 @@ struct IngredientEngineView: View {
         print("[DEBUG][RowTap]", row.role)
         #endif
     }
+    
+    // MARK: - Binding生成ヘルパー関数追加
+    
+    // ✅ rows の中から「指定 itemId のフィールド」を直接読み書きする Binding を作る
+    private func bindingForItemField(
+        itemId: UUID,
+        get: @escaping (IngredientItem) -> String,
+        set: @escaping (inout IngredientItem, String) -> Void
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                guard let idx = engineStore.rows.firstIndex(where: { row in
+                    switch row {
+                    case .single(let it): return it.id == itemId
+                    case .blockItem(let it): return it.id == itemId
+                    default: return false
+                    }
+                }) else { return "" }
+
+                switch engineStore.rows[idx] {
+                case .single(let it): return get(it)
+                case .blockItem(let it): return get(it)
+                default: return ""
+                }
+            },
+            set: { newValue in
+                guard let idx = engineStore.rows.firstIndex(where: { row in
+                    switch row {
+                    case .single(let it): return it.id == itemId
+                    case .blockItem(let it): return it.id == itemId
+                    default: return false
+                    }
+                }) else { return }
+
+                switch engineStore.rows[idx] {
+                case .single(var it):
+                    set(&it, newValue)
+                    engineStore.rows[idx] = .single(it)
+
+                case .blockItem(var it):
+                    set(&it, newValue)
+                    engineStore.rows[idx] = .blockItem(it)
+
+                default:
+                    break
+                }
+            }
+        )
+    }
 
 
+// MARK: - ページ本体
     
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -44,10 +96,32 @@ struct IngredientEngineView: View {
 
                     // ✅ ここからが “single 、EngineStoreを参照して表示するから、engineStore.rows)
                     let indexedRows = Array(engineStore.rows.enumerated())
-                    
+
                     ForEach(indexedRows, id: \.element.id) { index, row in
                         rowView(for: row)
+                            .contentShape(Rectangle())   // 行全体タップを安定させる
+                            .onTapGesture {
+                                debugRowTap(row)
+
+                                if isDeleteMode {
+                                    switch row {
+                                    case .single(let item), .blockItem(let item):
+                                        engineStore.deleteRow(itemId: item.id)
+                                    case .blockHeader(let block):
+                                        engineStore.deleteBlock(blockId: block.id)
+                                    }
+                                } else {
+                                    // ✅ ここが今回の目的：追加の基準行を記録
+                                    selectedIndex = index
+                                    #if DEBUG
+                                    print("🎯 selectedIndex=\(index) role=\(row.role)")
+                                    #endif
+                                }
+                            }
                     }
+
+                    
+                    
 
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
@@ -59,7 +133,7 @@ struct IngredientEngineView: View {
                 
                 .onDisappear {
                     engineStore.saveNow() // 画面から出たら保存・ログはEngineStoreに配置する
-                    engineStore.rows.removeAll() // これで次回はDBから読む
+//                    engineStore.rows.removeAll() // これで次回はDBから読む
                 #if DEBUG
                     print("✅ saved & cleared \(engineStore.rows.count) rows")
                 #endif
@@ -80,7 +154,19 @@ struct IngredientEngineView: View {
                 showsDelete: true,
                 isDeleteMode: isDeleteMode,
                 onToggleDelete: { isDeleteMode.toggle() },
-                onPrimary: { if !path.isEmpty { path.removeLast() } },
+                onAddSingle: {
+                    let inserted = engineStore.addSingle(after: selectedIndex)
+                    selectedIndex = inserted
+                },
+                onAddBlock: {
+                    let inserted = engineStore.addBlock(after: selectedIndex) // ✅ header only版
+                    selectedIndex = inserted
+                },
+                // ✅ ひとまず onPrimary を「＋」に割り当て（最短で追加が動く）
+                onPrimary: {
+                    let inserted = engineStore.addSingle(after: selectedIndex)
+                    selectedIndex = inserted
+                        },
                 onHome: { path = [] },
                 onSwipeLeft: { },
                 onSwipeRight: { if !path.isEmpty { path.removeLast() } }
@@ -148,34 +234,59 @@ struct IngredientEngineView: View {
                 
             case .single(let item):
                 HStack(spacing: 6) {
-                    Text(item.name.isEmpty ? " " : item.name)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(item.amount)
-                        .frame(width: amountWidth, alignment: .trailing)
-                    Text(item.unit)
-                        .frame(width: unitWidth, alignment: .leading)
+                    TextField("材料", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.name },
+                        set: { $0.name = $1 }
+                    ))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    TextField("分量", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.amount },
+                        set: { $0.amount = $1 }
+                    ))
+                    .frame(width: amountWidth, alignment: .trailing)
+                    .multilineTextAlignment(.trailing)
+                    
+                    TextField("単位", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.unit },
+                        set: { $0.unit = $1 }
+                    ))
+                    .frame(width: unitWidth, alignment: .leading)
                 }
 
                 
             case .blockHeader(let block):
                 HStack(spacing: 0) {
-                    IngredientBlockHeaderRowView(title: block.title.isEmpty ? "合わせ調味料" : block.title)
-
+                    IngredientBlockHeaderRowView(store: engineStore, block: block)
                 }
                 
             case .blockItem(let item):
                 HStack(spacing: 4) {
                     
-                    Text(item.name.isEmpty ? " " : item.name)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    TextField("材料", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.name },
+                        set: { $0.name = $1 }
+                    ))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     
+                    TextField("分量", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.amount },
+                        set: { $0.amount = $1 }
+                    ))
+                    .frame(width: amountWidth, alignment: .trailing)
+                    .multilineTextAlignment(.trailing)
                     
-                    Text(item.amount)
-                        .frame(width: amountWidth, alignment: .trailing)
-                    
-                    
-                    Text(item.unit)
-                        .frame(width: unitWidth, alignment: .leading)
+                    TextField("単位", text: bindingForItemField(
+                        itemId: item.id,
+                        get: { $0.unit },
+                        set: { $0.unit = $1 }
+                    ))
+                    .frame(width: unitWidth, alignment: .leading)
                 }
                 .padding(.leading, 12) // ← ブロック内感だけ付ける（仮）
             }
