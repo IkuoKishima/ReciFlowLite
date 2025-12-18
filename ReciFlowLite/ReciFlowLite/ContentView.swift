@@ -23,8 +23,8 @@ struct ContentView: View {
                     //✅ここでエンジンビューを生成している
                     case .engine(let id):
                         IngredientEngineView(
-                            recipeStore: store,
                             engineStore: store.engineStore(for: id),
+                            recipeStore: store,
                             recipeId: id,
                             path: $path
                         )

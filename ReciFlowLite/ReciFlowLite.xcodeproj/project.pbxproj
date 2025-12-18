@@ -26,9 +26,10 @@
 		9014872E2EEDFE7C00B740F4 /* RecipeStoreMemo.md in Resources */ = {isa = PBXBuildFile; fileRef = 9014872D2EEDFE5D00B740F4 /* RecipeStoreMemo.md */; };
 		901487302EEE335F00B740F4 /* RecipeListMemo.md in Resources */ = {isa = PBXBuildFile; fileRef = 9014872F2EEE333900B740F4 /* RecipeListMemo.md */; };
 		901487322EEE3D1400B740F4 /* RecipeMemo.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487312EEE3CF300B740F4 /* RecipeMemo.md */; };
-		901487342EEE3F1200B740F4 /* Day4.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487332EEE3EFF00B740F4 /* Day4.md */; };
+		901487342EEE3F1200B740F4 /* Day6.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487332EEE3EFF00B740F4 /* Day6.md */; };
 		901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */; };
 		901487382EEE792000B740F4 /* EngineMemo.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487372EEE790500B740F4 /* EngineMemo.md */; };
+		90379D0B2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */; };
 		90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */; };
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
@@ -75,9 +76,10 @@
 		9014872D2EEDFE5D00B740F4 /* RecipeStoreMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RecipeStoreMemo.md; sourceTree = "<group>"; };
 		9014872F2EEE333900B740F4 /* RecipeListMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RecipeListMemo.md; sourceTree = "<group>"; };
 		901487312EEE3CF300B740F4 /* RecipeMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RecipeMemo.md; sourceTree = "<group>"; };
-		901487332EEE3EFF00B740F4 /* Day4.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Day4.md; sourceTree = "<group>"; };
+		901487332EEE3EFF00B740F4 /* Day6.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Day6.md; sourceTree = "<group>"; };
 		901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeMetaStrip.swift; sourceTree = "<group>"; };
 		901487372EEE790500B740F4 /* EngineMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EngineMemo.md; sourceTree = "<group>"; };
+		90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEnginePreviewContainer.swift; sourceTree = "<group>"; };
 		90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEngineStore.swift; sourceTree = "<group>"; };
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
@@ -201,11 +203,12 @@
 			isa = PBXGroup;
 			children = (
 				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
+				90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */,
 				90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */,
 				901486D52EEBB63300B740F4 /* RecipeEditView.swift */,
 				901486D72EEBB65800B740F4 /* RecipeListView.swift */,
 				901487372EEE790500B740F4 /* EngineMemo.md */,
-				901487332EEE3EFF00B740F4 /* Day4.md */,
+				901487332EEE3EFF00B740F4 /* Day6.md */,
 				9014872F2EEE333900B740F4 /* RecipeListMemo.md */,
 				90BB74452EF0C12400F8F329 /* Rap.md */,
 				901486D12EEBB5E000B740F4 /* ProcessEditView.swift */,
@@ -353,7 +356,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				901487382EEE792000B740F4 /* EngineMemo.md in Resources */,
-				901487342EEE3F1200B740F4 /* Day4.md in Resources */,
+				901487342EEE3F1200B740F4 /* Day6.md in Resources */,
 				9014872E2EEDFE7C00B740F4 /* RecipeStoreMemo.md in Resources */,
 				901487122EEBBEA100B740F4 /* memo.md in Resources */,
 				901487302EEE335F00B740F4 /* RecipeListMemo.md in Resources */,
@@ -389,6 +392,7 @@
 				90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */,
 				901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */,
 				90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */,
+				90379D0B2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift in Sources */,
 				901487262EEC375F00B740F4 /* DatabaseManager.swift in Sources */,
 				901486D22EEBB60200B740F4 /* ProcessEditView.swift in Sources */,
 				901486D62EEBB64200B740F4 /* RecipeEditView.swift in Sources */,

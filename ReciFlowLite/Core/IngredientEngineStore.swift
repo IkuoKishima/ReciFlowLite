@@ -149,7 +149,7 @@ extension IngredientEngineStore {
             parentRecipeId: parentRecipeId,
             parentBlockId: nil,
             orderIndex: 0,
-            name: "",
+            name: "S",
             amount: "",
             unit: ""
         )
@@ -186,7 +186,7 @@ extension IngredientEngineStore {
         return headerAt
     }
 
-    /// block内＋：指定 blockId の配下に blockItem を追加
+    //🟡block内＋：指定 blockId の配下に blockItem を追加
     /// - after: nil なら「そのブロックの末尾」に追加（推奨・事故りにくい）
     /// - Returns: 挿入された rows index
     @discardableResult
@@ -202,13 +202,14 @@ extension IngredientEngineStore {
             }
         }
 
+        // 2) baseIndex の直後に挿入
         let insertAt = insertionIndex(after: baseIndex)
 
         let newItem = IngredientItem(
             parentRecipeId: parentRecipeId,
             parentBlockId: blockId,
             orderIndex: 0,
-            name: "",
+            name: "B",
             amount: "",
             unit: ""
         )
@@ -223,58 +224,4 @@ extension IngredientEngineStore {
         return insertAt
     }
 }
-
-
-//import Foundation
-//
-//final class IngredientEngineStore: ObservableObject {
-//    @Published var rows: [IngredientRow] = []
-//    
-//    //✅Engineから呼び出す仮データ　seedIfNeeded（必要に応じてタネを撒く）
-//    func seedIfNeeded() {
-//        if rows.isEmpty {
-//            let block = IngredientBlock(
-//                id: UUID(),
-//                title: "合わせ調味料"
-//            )
-//            rows = [
-//                .single(.init(name: "酒", amount: "012345", unit: "ml")),
-//                .single(.init(name: "醤油", amount: "15", unit: "0123")),
-//                .blockHeader(block),
-//                .blockItem(.init(name: "砂糖", amount: "012345", unit: "0123")),
-//                .blockItem(.init(name: "塩", amount: "1", unit: "tsp")),
-//                .single(.init(name: "塩", amount: "1", unit: "tsp"))
-//            ]
-//        }
-//    }
-//}
-
-//enum IngredientRow: Identifiable, Equatable {
-//    case single(IngredientItem)
-//    case blockHeader(IngredientBlock)
-//    case blockItem(IngredientItem)
-//
-//    var id: UUID {
-//        switch self {
-//        case .single(let i): return i.id
-//        case .blockHeader(let b): return b.id
-//        case .blockItem(let i): return i.id
-//        }
-//    }
-//}
-
-//struct IngredientItem: Identifiable, Equatable {
-//    var id: UUID = UUID()
-//    var name: String = ""
-//    var amount: String = ""
-//    var unit: String = ""
-//}
-
-//struct IngredientBlock: Identifiable, Equatable {
-//    var id: UUID = UUID()
-//    var title: String = ""
-//}
-
-
-
 
