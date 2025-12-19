@@ -1,24 +1,117 @@
 //🟨 ここを司令塔にする(状態を持っているのはここ、Viewは参照しているだけ）
 
 import Foundation
+import UIKit
 
 final class IngredientEngineStore: ObservableObject {
     @Published var rows: [IngredientRow] = []
     
     // ✅ グローバルレール（最後に選択されたrow.id）
     @Published var globalRailRowId: UUID? = nil
-    
-    // ✅ v15の「レール」：追加の基準を保持
-//    @Published var globalInsertAnchorId: UUID? = nil
     @Published var blockInsertAnchorId: [UUID: UUID] = [:]   // blockId -> rowId
     
+    private(set) var parentRecipeId: UUID
+    
+    // ✅ 追加：未保存変更フラグ
+    @Published private(set) var isDirty: Bool = false
+
+    // ✅ 追加：デバウンス保存用
+    private var saveWorkItem: DispatchWorkItem?
+    private let debounceSeconds: TimeInterval = 0.6
     
 
-    private(set) var parentRecipeId: UUID
-
+    
+    // MARK: - 初期化処理
+    
     init(parentRecipeId: UUID) {
         self.parentRecipeId = parentRecipeId
     }
+    
+    
+    // ✅ 追加：変更が起きたら呼ぶ（＝保存予約）
+    func markDirtyAndScheduleSave(reason: String = "") {
+        isDirty = true
+
+        // 直前の予約をキャンセルして「最後の操作から一定時間後に保存」
+        saveWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.saveNow(force: false)
+        }
+        saveWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + debounceSeconds, execute: work)
+
+        #if DEBUG
+        if !reason.isEmpty { print("🟨 markDirty: \(reason)") }
+        #endif
+    }
+    
+    // ✅ 追加：即時保存（バックグラウンド/画面離脱など）
+    func flushSave(reason: String = "") {
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        saveNow(force: true)
+
+        #if DEBUG
+        if !reason.isEmpty { print("🟧 flushSave: \(reason)") }
+        #endif
+    }
+    
+    // MARK: - 保存（既存を少しだけ改造）
+    func saveNow(force: Bool = false) {
+        // 「変更がないなら保存しない」＝もたつき軽減
+        if !force, !isDirty { return }
+
+        DatabaseManager.shared.createIngredientTablesIfNeeded()
+        DatabaseManager.shared.replaceIngredientRows(
+            recipeId: parentRecipeId,
+            rows: rows
+        )
+
+        isDirty = false
+
+        #if DEBUG
+        print("✅ saved \(rows.count) rows (force=\(force))")
+        #endif
+    }
+    
+    
+    // 🔀loadIfNeeded()を使わないでDB読み込み検証をするための記述
+
+    // MARK: - 読込（破壊テスト用：毎回DBから復元）
+    func load() {
+        #if DEBUG
+        print("🟦 load start recipeId=\(parentRecipeId)")
+        #endif
+
+        DatabaseManager.shared.createIngredientTablesIfNeeded()
+#if DEBUG
+print("🟦 fetchIngredientRows start")
+#endif
+        let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+#if DEBUG
+print("🟦 fetchIngredientRows end count=\(loaded.count)")
+#endif
+
+        rows = loaded
+        reindexAll()// ← Liteでは必須（DB整合保証）
+        // ✅ レール初期化（unitRange方式の基準）
+        globalRailRowId = rows.last?.id
+
+        blockInsertAnchorId = [:]
+        for row in rows {
+            if case .blockItem(let item) = row, let blockId = item.parentBlockId {
+                blockInsertAnchorId[blockId] = row.id// ブロックごとの“最後にある行”をレールに
+            }
+        }
+
+        // ✅ load直後は「保存済み状態」扱いにする
+        isDirty = false
+    }
+
+
+    
+    
 
     // MARK: - 読込
     
@@ -79,55 +172,12 @@ final class IngredientEngineStore: ObservableObject {
 //        ]
 //    }
     
-    // 🔀loadIfNeeded()を使わないでDB読み込み検証をするための記述
-    // MARK: - 読込（破壊テスト用：毎回DBから復元）
-    func load() {
-        #if DEBUG
-        print("🟦 load start recipeId=\(parentRecipeId)")
-        #endif
 
-        DatabaseManager.shared.createIngredientTablesIfNeeded()
-
-        #if DEBUG
-        print("🟦 fetchIngredientRows start")
-        #endif
-
-        let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
-
-        #if DEBUG
-        print("🟦 fetchIngredientRows end count=\(loaded.count)")
-        #endif
-
-        rows = loaded
-        reindexAll()   // ← Liteでは必須（DB整合保証）
-        // ✅ レール初期化（unitRange方式の基準）
-        globalRailRowId = rows.last?.id
-
-        blockInsertAnchorId = [:]
-        for row in rows {
-            if case .blockItem(let item) = row, let blockId = item.parentBlockId {
-                blockInsertAnchorId[blockId] = row.id   // ブロックごとの“最後にある行”をレールに
-            }
-        }
-
-    }
 
     
 
 
-    // MARK: - 保存
-    
-    func saveNow() {
-        DatabaseManager.shared.createIngredientTablesIfNeeded()
-        DatabaseManager.shared.replaceIngredientRows(
-            recipeId: parentRecipeId,
-            rows: rows
-        )
-        //保存した責任側がログを出す方が好まれる書き方
-        #if DEBUG
-        print("✅ saved \(rows.count) rows")
-        #endif
-    }
+
     
    
 }
@@ -219,13 +269,15 @@ extension IngredientEngineStore {
         reindexAll()
         // レールも新規行へ
         globalRailRowId = rows[insertIndex].id
+        // ✅ 追加
+        markDirtyAndScheduleSave(reason: "addSingleAtGlobalRail")
         return insertIndex
     }
     
     // グローバル2x2　ブロックヘッダも同じ規則で固定
     @discardableResult
     func addBlockHeaderAtGlobalRail() -> Int {
-        let newBlock = IngredientBlock(parentRecipeId: parentRecipeId, orderIndex: 0, title: "合わせ調味料")
+        let newBlock = IngredientBlock(parentRecipeId: parentRecipeId, orderIndex: 0, title: "調合")
 
         guard let railId = globalRailRowId,
                 let selectedIndex = rows.firstIndex(where: { $0.id == railId })
@@ -233,6 +285,7 @@ extension IngredientEngineStore {
             rows.append(.blockHeader(newBlock))
             let inserted = rows.count - 1
             globalRailRowId = rows[inserted].id
+            markDirtyAndScheduleSave(reason: "addBlockHeaderAtGlobalRail") // ←ここも
             return inserted
         }
 
@@ -242,6 +295,7 @@ extension IngredientEngineStore {
         rows.insert(.blockHeader(newBlock), at: insertIndex)
         reindexAll()
         globalRailRowId = rows[insertIndex].id
+        markDirtyAndScheduleSave(reason: "addBlockHeaderAtGlobalRail") // ←追加
         return insertIndex
     }
     
@@ -280,11 +334,9 @@ extension IngredientEngineStore {
             case .single(var item):
                 item.orderIndex = i
                 rows[i] = .single(item)
-
             case .blockItem(var item):
                 item.orderIndex = i
                 rows[i] = .blockItem(item)
-
             case .blockHeader(var block):
                 block.orderIndex = i
                 rows[i] = .blockHeader(block)
@@ -426,6 +478,7 @@ extension IngredientEngineStore {
             deleteBlock(blockId: block.id, startingAt: index)
         }
         reindexAll()   // ⚠️orderIndex をDB保存に使うので、delete後に reindexAll() は必須
+        flushSave(reason: "deleteRow")// ✅ deleteだけ即保存
     }
     
     

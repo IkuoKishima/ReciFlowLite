@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct IngredientEngineView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let DEBUG = true ////🟡エクステンションでデバッグ背景を有効にする
     @ObservedObject var engineStore: IngredientEngineStore // rows用（本体）
     @ObservedObject var recipeStore: RecipeStore          // レシピメタ用（必要なら）
@@ -150,17 +151,31 @@ struct IngredientEngineView: View {
                     }
                 }) else { return }
 
+                var didUpdate = false
+
                 switch engineStore.rows[idx] {
                 case .single(var it):
+                    let old = get(it)
+                    if old == newValue { return }   // ✅ 同値ならスルー
                     set(&it, newValue)
                     engineStore.rows[idx] = .single(it)
+                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
+                    didUpdate = true
 
                 case .blockItem(var it):
+                    let old = get(it)
+                    if old == newValue { return }   // ✅ 同値ならスルー
                     set(&it, newValue)
                     engineStore.rows[idx] = .blockItem(it)
+                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
+                    didUpdate = true
 
                 default:
                     break
+                }
+
+                if didUpdate {
+                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
                 }
             }
         )
@@ -203,10 +218,18 @@ struct IngredientEngineView: View {
                 }
                 
                 .onDisappear {
-                    engineStore.saveNow() // 画面から出たら保存・ログはEngineStoreに配置する
+                    // ✅ 予約中があっても必ず確定保存
+                    engineStore.flushSave(reason: "onDisappear")
                 #if DEBUG
                     print("✅ saved & cleared \(engineStore.rows.count) rows")
                 #endif
+                }
+                
+                .onChange(of: scenePhase) { phase in
+                    if phase == .background || phase == .inactive {
+                        // ✅ アプリが裏に回る瞬間に確定保存
+                        engineStore.flushSave(reason: "scenePhase=\(phase)")
+                    }
                 }
 
 
