@@ -22,7 +22,7 @@ struct IngredientEngineView: View {
     private let amountWidth: CGFloat = 64 //分量フィールド幅
     private let unitWidth: CGFloat = 42 //単位フィールド幅
     private let rowHeight: CGFloat = 36 //文字の高さ
-    private let rowVPadding: CGFloat = 0 //⚠️文字内余白
+//    private let rowVPadding: CGFloat = 0 //⚠️文字内余白
     
 
 
@@ -110,12 +110,12 @@ struct IngredientEngineView: View {
   
     
     
-    // MARK: - デバッグ通知を一箇所にまとめ、ビルドに入らない#️⃣で扱う
-    private func debugRowTap(_ row: IngredientRow) {
-        #if DEBUG
-        print("[DEBUG][RowTap]", row.role)
-        #endif
-    }
+//    // MARK: - デバッグ通知を一箇所にまとめ、ビルドに入らない#️⃣で扱う
+//    private func debugRowTap(_ row: IngredientRow) {
+//        #if DEBUG
+//        print("[DEBUG][RowTap]", row.role)
+//        #endif
+//    }
     
     // MARK: - Binding生成ヘルパー関数追加
     
@@ -270,32 +270,34 @@ struct IngredientEngineView: View {
             .frame(width: 20)
             .contentShape(Rectangle())
             .allowsHitTesting(isDeleteMode)
+        
+        
             .onTapGesture {
+                guard isDeleteMode else {// ✅ 削除モードの時だけ反応
+                // =========================
+                // 🟩 通常モード（v15レール更新）
+                // =========================
+                    selectedIndex = index
+                    // ✅ 追加・入力の基準になる「レール」を更新
+                    engineStore.userDidSelectRow(row.id)
+                    return// ← ここで必ず終了（レール更新しない、するとレールがズレる）
+                }
 
                 // =========================
                 // 🟥 削除モード
                 // =========================
-                if isDeleteMode {
-                    selectedIndex = index   // ⚠️ 削除は index 基準が正解
-                    engineStore.deleteRow(at: index)
+                selectedIndex = index// ⚠️ 削除は index 基準が正解
+                engineStore.deleteRow(at: index)
 
-                    // 削除後に index が範囲外になるのを防ぐ
-                    if engineStore.rows.isEmpty {
-                        selectedIndex = nil
-                    } else {
-                        selectedIndex = min(index, engineStore.rows.count - 1)
-                    }
-
-                    return   // ← ここで必ず終了（レール更新しない、するとレールがズレる）
+                // 削除後に index が範囲外になるのを防ぐ
+                if engineStore.rows.isEmpty {
+                    selectedIndex = nil
+                    engineStore.globalRailRowId = nil
+                } else {
+                    let next = min(index, engineStore.rows.count - 1)
+                    selectedIndex = next
+                    engineStore.globalRailRowId = engineStore.rows[next].id
                 }
-
-                // =========================
-                // 🟩 通常モード（v15レール更新）
-                // =========================
-                selectedIndex = index
-
-                // ✅ 追加・入力の基準になる「レール」を更新
-                engineStore.userDidSelectRow(row.id)
             }
 
             .debugBG(DEBUG, .red.opacity(0.12), "DEL")
@@ -322,6 +324,7 @@ struct IngredientEngineView: View {
         .frame(minHeight: rowHeight) //✅ 高さはここで統一
         .contentShape(Rectangle())
         .onTapGesture {
+            guard !isDeleteMode else { return }// ✅ 削除中は行タップ無効🆑連打遅延対策
             selectedIndex = index
 
             // ✅ global rail 更新
@@ -335,12 +338,11 @@ struct IngredientEngineView: View {
                 engineStore.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
             }
 
-            
-
             #if DEBUG
             print("✅ selectedIndex = \(index) role=\(row.role) rail=\(row.id)")
             #endif
         }
+
 
     }
 

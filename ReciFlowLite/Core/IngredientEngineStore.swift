@@ -5,8 +5,11 @@ import Foundation
 final class IngredientEngineStore: ObservableObject {
     @Published var rows: [IngredientRow] = []
     
+    // ✅ グローバルレール（最後に選択されたrow.id）
+    @Published var globalRailRowId: UUID? = nil
+    
     // ✅ v15の「レール」：追加の基準を保持
-    @Published var globalInsertAnchorId: UUID? = nil
+//    @Published var globalInsertAnchorId: UUID? = nil
     @Published var blockInsertAnchorId: [UUID: UUID] = [:]   // blockId -> rowId
     
     
@@ -97,8 +100,8 @@ final class IngredientEngineStore: ObservableObject {
 
         rows = loaded
         reindexAll()   // ← Liteでは必須（DB整合保証）
-        // ✅ レール初期化（復元後の rows に合わせる）
-        globalInsertAnchorId = rows.last?.id
+        // ✅ レール初期化（unitRange方式の基準）
+        globalRailRowId = rows.last?.id
 
         blockInsertAnchorId = [:]
         for row in rows {
@@ -132,6 +135,135 @@ final class IngredientEngineStore: ObservableObject {
 
 extension IngredientEngineStore {
 
+    
+    // ✅ このindexが属する「ユニット（single or block）」範囲を返す
+    func unitRange(at index: Int) -> Range<Int> {
+        guard rows.indices.contains(index) else { return index..<index }
+
+        switch rows[index] {
+
+        case .single:
+            return index ..< (index + 1)
+
+        case .blockHeader(let block):
+            var end = index + 1
+            while end < rows.count {
+                if case .blockItem(let item) = rows[end], item.parentBlockId == block.id {
+                    end += 1
+                } else {
+                    break
+                }
+            }
+            return index ..< end
+
+        case .blockItem(let item):
+            // blockItem から呼ばれたら、対応する header を探してそこから範囲を返す
+            var headerIndex = index - 1
+            while headerIndex >= 0 {
+                if case .blockHeader(let block) = rows[headerIndex], block.id == item.parentBlockId {
+                    return unitRange(at: headerIndex)
+                }
+                headerIndex -= 1
+            }
+            return index ..< (index + 1) // 安全策
+        }
+    }
+    
+    
+    
+    //アンカー更新ルール（重要）の追加
+    
+    // ✅　選択更新：グローバルレール（最後に選択されたrow.id）
+    func userDidSelectRow(_ rowId: UUID) {
+        globalRailRowId = rowId
+    }
+    
+    // ✅ ブロック内操作の「レール更新」（globalは汚さない）
+    func userDidSelectRowInBlock(blockId: UUID, rowId: UUID) {
+        blockInsertAnchorId[blockId] = rowId
+    }
+
+    // rowId -> index 解決（直前に必ずこれで確定させる）
+    func indexOfRow(id: UUID?) -> Int? {
+        guard let id else { return nil }
+        return rows.firstIndex(where: { $0.id == id })
+    }
+    
+    
+    
+    
+
+    
+    
+    // 挿入本体：これで 「ブロックヘッダとブロックアイテムの間に割り込む」現象は、論理的に起きない
+    /// ✅ グローバル＋：選択ユニットの「末尾」に single を入れる
+    @discardableResult
+    func addSingleAtGlobalRail() -> Int {
+        let newItem = IngredientItem(parentRecipeId: parentRecipeId)
+
+        // 選択が無い → 末尾
+        guard let railId = globalRailRowId,
+                let selectedIndex = rows.firstIndex(where: { $0.id == railId })
+        else {
+            rows.append(.single(newItem))
+            let inserted = rows.count - 1
+            globalRailRowId = rows[inserted].id
+            return inserted
+        }
+
+        // ✅ 選択ユニット範囲の末尾（upperBound）に挿入
+        let range = unitRange(at: selectedIndex)
+        let insertIndex = range.upperBound
+
+        rows.insert(.single(newItem), at: insertIndex)
+        reindexAll()
+        // レールも新規行へ
+        globalRailRowId = rows[insertIndex].id
+        return insertIndex
+    }
+    
+    // グローバル2x2　ブロックヘッダも同じ規則で固定
+    @discardableResult
+    func addBlockHeaderAtGlobalRail() -> Int {
+        let newBlock = IngredientBlock(parentRecipeId: parentRecipeId, orderIndex: 0, title: "合わせ調味料")
+
+        guard let railId = globalRailRowId,
+                let selectedIndex = rows.firstIndex(where: { $0.id == railId })
+        else {
+            rows.append(.blockHeader(newBlock))
+            let inserted = rows.count - 1
+            globalRailRowId = rows[inserted].id
+            return inserted
+        }
+
+        let range = unitRange(at: selectedIndex)
+        let insertIndex = range.upperBound
+
+        rows.insert(.blockHeader(newBlock), at: insertIndex)
+        reindexAll()
+        globalRailRowId = rows[insertIndex].id
+        return insertIndex
+    }
+    
+    @discardableResult
+    func addBlockItemAtBlockRail(blockId: UUID) -> Int {
+        let afterIndex = indexOfRow(id: blockInsertAnchorId[blockId])
+        let inserted = addBlockItem(blockId: blockId, after: afterIndex)
+
+        // ✅ block rail は更新する
+        blockInsertAnchorId[blockId] = rows[inserted].id
+
+        // ❌ global rail は更新しない（←ここがv15の“流れ維持”の核）
+        return inserted
+    }
+    
+  
+
+    
+    
+    
+    
+    
 
     /// rows配列の安全な「挿入先index」を作る
     /// - after: nil なら末尾、指定があれば「その直後」に挿入
@@ -182,54 +314,7 @@ extension IngredientEngineStore {
     
 
     
-//アンカー更新ルール（重要）の追加
-    // ✅ ユーザーが行を触った時の「レール更新」
-    func userDidSelectRow(_ rowId: UUID) {
-        globalInsertAnchorId = rowId
-    }
 
-    // ✅ ブロック内操作の「レール更新」（globalは汚さない）
-    func userDidSelectRowInBlock(blockId: UUID, rowId: UUID) {
-        blockInsertAnchorId[blockId] = rowId
-    }
-
-    // rowId -> index 解決（直前に必ずこれで確定させる）
-    func indexOfRow(id: UUID?) -> Int? {
-        guard let id else { return nil }
-        return rows.firstIndex(where: { $0.id == id })
-    }
-  
-
-    
-    @discardableResult
-        func addSingleAtGlobalRail() -> Int {
-            let afterIndex = indexOfRow(id: globalInsertAnchorId)
-            let inserted = addSingle(after: afterIndex)
-            // ✅ v15: single追加は global rail を更新してよい
-            globalInsertAnchorId = rows[inserted].id
-            return inserted
-        }
-    
-    @discardableResult
-        func addBlockHeaderAtGlobalRail() -> Int {
-            let afterIndex = indexOfRow(id: globalInsertAnchorId)
-            let headerIndex = addBlock(after: afterIndex)   // ✅ ヘッダのみ追加（地雷回避）
-            // ✅ v15: 2x2(ヘッダ)追加は global rail を更新してよい
-            globalInsertAnchorId = rows[headerIndex].id
-            return headerIndex
-        }
-    
-    @discardableResult
-        func addBlockItemAtBlockRail(blockId: UUID) -> Int {
-            let afterIndex = indexOfRow(id: blockInsertAnchorId[blockId])
-            let inserted = addBlockItem(blockId: blockId, after: afterIndex)
-
-            // ✅ block rail は更新する
-            blockInsertAnchorId[blockId] = rows[inserted].id
-
-            // ❌ global rail は更新しない（←ここがv15の“流れ維持”の核）
-            return inserted
-        }
     
     
  
@@ -307,7 +392,7 @@ extension IngredientEngineStore {
             parentRecipeId: parentRecipeId,
             parentBlockId: blockId,
             orderIndex: 0,
-            name: "B",
+            name: "",
             amount: "",
             unit: ""
         )

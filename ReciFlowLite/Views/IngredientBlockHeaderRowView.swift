@@ -14,13 +14,11 @@ struct IngredientBlockHeaderRowView: View {
             Text(block.title.isEmpty ? "合わせ調味料" : block.title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
-//                .frame(maxWidth: .infinity, alignment: .leading)
 
             // ✅ blockItem追加（ヘッダー起点）
             Button {
                 // ✅ v15方式：block rail を使って「このブロックの＋」を安定させる
                 let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
-
                 // ✅ UI側の選択（selectedIndex）を追従させる
                 onInserted(inserted)
 
@@ -36,15 +34,10 @@ struct IngredientBlockHeaderRowView: View {
             }
             .buttonStyle(.plain)
 
-            
             Spacer(minLength: 0) // ✅ 左寄せに固定する
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        .onTapGesture {
-            // ✅ このブロックの操作基準を「ヘッダ」に寄せる（block rail更新）
-            store.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
-        }
 
     }
 }
