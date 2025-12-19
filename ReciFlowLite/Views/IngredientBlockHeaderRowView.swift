@@ -18,10 +18,14 @@ struct IngredientBlockHeaderRowView: View {
 
             // ✅ blockItem追加（ヘッダー起点）
             Button {
-                let inserted = store.addBlockItem(blockId: block.id) // ✅ このブロック限定
-                onInserted(inserted)                                 // ✅ 追加直後に選択更新
+                // ✅ v15方式：block rail を使って「このブロックの＋」を安定させる
+                let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
+
+                // ✅ UI側の選択（selectedIndex）を追従させる
+                onInserted(inserted)
+
                 #if DEBUG
-                print("✅ header plus tapped blockId=\(block.id)")
+                print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
                 #endif
             } label: {
                 Image(systemName: "plus.circle.fill")
@@ -31,10 +35,16 @@ struct IngredientBlockHeaderRowView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+
             
-            Spacer(minLength: 0) // ✅ これで右端に押し出さない
+            Spacer(minLength: 0) // ✅ 左寄せに固定する
         }
         .padding(.vertical, 6)
-        .contentShape(Rectangle()) // 行全体の当たりを安定
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // ✅ このブロックの操作基準を「ヘッダ」に寄せる（block rail更新）
+            store.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
+        }
+
     }
 }

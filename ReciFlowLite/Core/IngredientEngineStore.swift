@@ -4,6 +4,12 @@ import Foundation
 
 final class IngredientEngineStore: ObservableObject {
     @Published var rows: [IngredientRow] = []
+    
+    // ✅ v15の「レール」：追加の基準を保持
+    @Published var globalInsertAnchorId: UUID? = nil
+    @Published var blockInsertAnchorId: [UUID: UUID] = [:]   // blockId -> rowId
+    
+    
 
     private(set) var parentRecipeId: UUID
 
@@ -13,17 +19,69 @@ final class IngredientEngineStore: ObservableObject {
 
     // MARK: - 読込
     
-    func loadIfNeeded() {
+//    func loadIfNeeded() {
+//        #if DEBUG
+//        print("🟦 loadIfNeeded start recipeId=\(parentRecipeId)")
+//        #endif
+//
+//        if !rows.isEmpty {
+//            #if DEBUG
+//            print("🟦 loadIfNeeded early return (rows already exist) count=\(rows.count)")
+//            #endif
+//            return
+//        }
+//
+//        DatabaseManager.shared.createIngredientTablesIfNeeded()
+//
+//        #if DEBUG
+//        print("🟦 fetchIngredientRows start")
+//        #endif
+//
+//        let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+//
+//        #if DEBUG
+//        print("🟦 fetchIngredientRows end count=\(loaded.count)")
+//        #endif
+//        if !loaded.isEmpty {
+//            rows = loaded
+//            return
+//        }
+//
+//        // v1: 初回だけ最小の種
+//        let block = IngredientBlock(
+//            parentRecipeId: parentRecipeId,
+//            orderIndex: 2,
+//            title: "調合"
+//        )
+//
+//        rows = [
+//            .single(.init(parentRecipeId: parentRecipeId, name: "酒", amount: "012345", unit: "ml")),
+//            .single(.init(parentRecipeId: parentRecipeId, name: "醤油", amount: "15", unit: "0123")),
+//
+//            .blockHeader(block),
+//
+//            .blockItem(.init(
+//                parentRecipeId: parentRecipeId,
+//                parentBlockId: block.id,     // ✅ 束に属する
+//                name: "砂糖", amount: "012345", unit: "0123"
+//            )),
+//            .blockItem(.init(
+//                parentRecipeId: parentRecipeId,
+//                parentBlockId: block.id,     // ✅ 束に属する
+//                name: "塩", amount: "1", unit: "tsp"
+//            )),
+//
+//            .single(.init(parentRecipeId: parentRecipeId, name: "塩", amount: "1", unit: "tsp")),
+//            .single(.init(parentRecipeId: parentRecipeId, name: "", amount: "", unit: ""))
+//        ]
+//    }
+    
+    // 🔀loadIfNeeded()を使わないでDB読み込み検証をするための記述
+    // MARK: - 読込（破壊テスト用：毎回DBから復元）
+    func load() {
         #if DEBUG
-        print("🟦 loadIfNeeded start recipeId=\(parentRecipeId)")
+        print("🟦 load start recipeId=\(parentRecipeId)")
         #endif
-
-        if !rows.isEmpty {
-            #if DEBUG
-            print("🟦 loadIfNeeded early return (rows already exist) count=\(rows.count)")
-            #endif
-            return
-        }
 
         DatabaseManager.shared.createIngredientTablesIfNeeded()
 
@@ -36,39 +94,22 @@ final class IngredientEngineStore: ObservableObject {
         #if DEBUG
         print("🟦 fetchIngredientRows end count=\(loaded.count)")
         #endif
-        if !loaded.isEmpty {
-            rows = loaded
-            return
+
+        rows = loaded
+        reindexAll()   // ← Liteでは必須（DB整合保証）
+        // ✅ レール初期化（復元後の rows に合わせる）
+        globalInsertAnchorId = rows.last?.id
+
+        blockInsertAnchorId = [:]
+        for row in rows {
+            if case .blockItem(let item) = row, let blockId = item.parentBlockId {
+                blockInsertAnchorId[blockId] = row.id   // ブロックごとの“最後にある行”をレールに
+            }
         }
 
-        // v1: 初回だけ最小の種
-        let block = IngredientBlock(
-            parentRecipeId: parentRecipeId,
-            orderIndex: 2,
-            title: "合わせ調味料"
-        )
-
-        rows = [
-            .single(.init(parentRecipeId: parentRecipeId, name: "酒", amount: "012345", unit: "ml")),
-            .single(.init(parentRecipeId: parentRecipeId, name: "醤油", amount: "15", unit: "0123")),
-
-            .blockHeader(block),
-
-            .blockItem(.init(
-                parentRecipeId: parentRecipeId,
-                parentBlockId: block.id,     // ✅ 束に属する
-                name: "砂糖", amount: "012345", unit: "0123"
-            )),
-            .blockItem(.init(
-                parentRecipeId: parentRecipeId,
-                parentBlockId: block.id,     // ✅ 束に属する
-                name: "塩", amount: "1", unit: "tsp"
-            )),
-
-            .single(.init(parentRecipeId: parentRecipeId, name: "塩", amount: "1", unit: "tsp")),
-            .single(.init(parentRecipeId: parentRecipeId, name: "", amount: "", unit: ""))
-        ]
     }
+
+    
 
 
     // MARK: - 保存
@@ -90,6 +131,7 @@ final class IngredientEngineStore: ObservableObject {
 // MARK: - 追加API（v15準拠：入力で増えない / 追加はドック起点）
 
 extension IngredientEngineStore {
+
 
     /// rows配列の安全な「挿入先index」を作る
     /// - after: nil なら末尾、指定があれば「その直後」に挿入
@@ -136,9 +178,65 @@ extension IngredientEngineStore {
         }
         return nil
     }
+    
+    
 
-    // MARK: - Public API
+    
+//アンカー更新ルール（重要）の追加
+    // ✅ ユーザーが行を触った時の「レール更新」
+    func userDidSelectRow(_ rowId: UUID) {
+        globalInsertAnchorId = rowId
+    }
 
+    // ✅ ブロック内操作の「レール更新」（globalは汚さない）
+    func userDidSelectRowInBlock(blockId: UUID, rowId: UUID) {
+        blockInsertAnchorId[blockId] = rowId
+    }
+
+    // rowId -> index 解決（直前に必ずこれで確定させる）
+    func indexOfRow(id: UUID?) -> Int? {
+        guard let id else { return nil }
+        return rows.firstIndex(where: { $0.id == id })
+    }
+  
+
+    
+    @discardableResult
+        func addSingleAtGlobalRail() -> Int {
+            let afterIndex = indexOfRow(id: globalInsertAnchorId)
+            let inserted = addSingle(after: afterIndex)
+            // ✅ v15: single追加は global rail を更新してよい
+            globalInsertAnchorId = rows[inserted].id
+            return inserted
+        }
+    
+    @discardableResult
+        func addBlockHeaderAtGlobalRail() -> Int {
+            let afterIndex = indexOfRow(id: globalInsertAnchorId)
+            let headerIndex = addBlock(after: afterIndex)   // ✅ ヘッダのみ追加（地雷回避）
+            // ✅ v15: 2x2(ヘッダ)追加は global rail を更新してよい
+            globalInsertAnchorId = rows[headerIndex].id
+            return headerIndex
+        }
+    
+    @discardableResult
+        func addBlockItemAtBlockRail(blockId: UUID) -> Int {
+            let afterIndex = indexOfRow(id: blockInsertAnchorId[blockId])
+            let inserted = addBlockItem(blockId: blockId, after: afterIndex)
+
+            // ✅ block rail は更新する
+            blockInsertAnchorId[blockId] = rows[inserted].id
+
+            // ❌ global rail は更新しない（←ここがv15の“流れ維持”の核）
+            return inserted
+        }
+    
+    
+ 
+    
+    // Public API（プライベートと対義語の、誰でも使える・アプリケーション・プログラム・インターフェース）
+// MARK: - 行追加の中枢
+    
     /// ＋：single を追加（追加位置は「タップ行の直後」／nilなら末尾）
     /// - Returns: 挿入された rows index（フォーカス合わせに使える）
     @discardableResult
@@ -164,7 +262,7 @@ extension IngredientEngineStore {
         return insertAt
     }
 
-    /// 2x2：blockHeader + 初期 blockItem を追加（2行挿入）
+    /// 2x2：Liteは「headerのみ追加」で固定（⚠️初期item同時生成は事故るため⚠️）
     /// - Returns: 初期 blockItem の rows index（フォーカス合わせに使える）
     @discardableResult
     func addBlock(after index: Int?) -> Int {
@@ -173,7 +271,7 @@ extension IngredientEngineStore {
         let block = IngredientBlock(
             parentRecipeId: parentRecipeId,
             orderIndex: 0,
-            title: "合わせ調味料"
+            title: "調合"
         )
 
         rows.insert(.blockHeader(block), at: headerAt)
@@ -223,5 +321,59 @@ extension IngredientEngineStore {
 
         return insertAt
     }
+    
+    
+    
+    
+    
+// MARK: - 行削除（delete ボタン用の中枢）
+    
+    func deleteRow(at index: Int) {
+        guard rows.indices.contains(index) else { return }
+
+        switch rows[index] {
+        case .single, .blockItem: // 単体行は 1 行だけ削除　ブロック内はヘッダは残る
+            rows.remove(at: index)
+            
+
+        case .blockHeader(let block):
+            // ブロックヘッダ＋同じ blockId を持つ blockItem をまとめて削除
+            deleteBlock(blockId: block.id, startingAt: index)
+        }
+        reindexAll()   // ⚠️orderIndex をDB保存に使うので、delete後に reindexAll() は必須
+    }
+    
+    
+
+    private func deleteBlock(blockId: UUID, startingAt headerIndex: Int) {
+        guard rows.indices.contains(headerIndex) else { return }
+        
+        var endIndex = headerIndex + 1
+        
+        // headerIndex の直後から、
+        // 「同じ blockId を持つ blockItem が連続している範囲」を探す
+        while endIndex < rows.count {
+            if case .blockItem(let item) = rows[endIndex],
+               item.parentBlockId == blockId {
+                // 同じブロックの中身なので、削除範囲を1つ伸ばす
+                endIndex += 1
+            } else {
+                // 別ブロックヘッダ or .single or 他の blockItem が来たら終了
+                break
+            }
+        }
+        
+        // [ヘッダ ..< 連続 blockItem の終端] をまとめて削除
+        rows.removeSubrange(headerIndex ..< endIndex)
+        
+        
+        //どのブロックが“ローカル並び替えモード”なのか」を示す状態（UI制御用）の時に必要な保険、
+        //@Published var localReorderBlockId: UUID?と一緒に使う
+//        if localReorderBlockId == blockId {
+//            localReorderBlockId = nil
+//        }
+        
+    }
+    
 }
 

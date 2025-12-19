@@ -7,7 +7,7 @@ struct IngredientEngineView: View {
     //ルーター配置
     @State private var isDeleteMode = false // 削除モード
     // 並替モード配置
-    @State private var selectedIndex: Int? = nil
+    @State private var selectedIndex: Int? = nil //🚧ここを止める予定
 
 
     let recipeId: UUID
@@ -196,7 +196,10 @@ struct IngredientEngineView: View {
                 .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
-                    engineStore.loadIfNeeded() // 画面に入ったら読み込み
+//                    engineStore.loadIfNeeded() // 画面に入ったら読み込み
+                    #if DEBUG //🔀loadIfNeeded()を使わずDB読み込みテスト
+                    engineStore.load()
+                    #endif
                 }
                 
                 .onDisappear {
@@ -225,17 +228,17 @@ struct IngredientEngineView: View {
                 isDeleteMode: isDeleteMode,
                 onToggleDelete: { isDeleteMode.toggle() },
                 
-                //🟡
+                
+                
                 onAddSingle: {
-                    let inserted = engineStore.addSingle(after: selectedIndex)
+                    let inserted = engineStore.addSingleAtGlobalRail()
                     selectedIndex = inserted
                 },
-                
-                
                 onAddBlock: {
-                    let inserted = engineStore.addBlock(after: selectedIndex) // ✅ header only版
+                    let inserted = engineStore.addBlockHeaderAtGlobalRail()
                     selectedIndex = inserted
                 },
+
                 
                 
                 // ✅ ひとまず onPrimary を「＋」に割り当て（最短で追加が動く）
@@ -268,17 +271,36 @@ struct IngredientEngineView: View {
             .contentShape(Rectangle())
             .allowsHitTesting(isDeleteMode)
             .onTapGesture {
-                guard isDeleteMode else { return }
-                switch row {
-                case .single(let item), .blockItem(let item):
-                    engineStore.deleteRow(itemId: item.id)
-                case .blockHeader(let block):
-                    engineStore.deleteBlock(blockId: block.id)
+
+                // =========================
+                // 🟥 削除モード
+                // =========================
+                if isDeleteMode {
+                    selectedIndex = index   // ⚠️ 削除は index 基準が正解
+                    engineStore.deleteRow(at: index)
+
+                    // 削除後に index が範囲外になるのを防ぐ
+                    if engineStore.rows.isEmpty {
+                        selectedIndex = nil
+                    } else {
+                        selectedIndex = min(index, engineStore.rows.count - 1)
+                    }
+
+                    return   // ← ここで必ず終了（レール更新しない、するとレールがズレる）
                 }
+
+                // =========================
+                // 🟩 通常モード（v15レール更新）
+                // =========================
+                selectedIndex = index
+
+                // ✅ 追加・入力の基準になる「レール」を更新
+                engineStore.userDidSelectRow(row.id)
             }
+
             .debugBG(DEBUG, .red.opacity(0.12), "DEL")
     }
-    
+
     
     
     //───── rowView を「中身だけ」） ─────//
@@ -299,6 +321,27 @@ struct IngredientEngineView: View {
         }
         .frame(minHeight: rowHeight) //✅ 高さはここで統一
         .contentShape(Rectangle())
+        .onTapGesture {
+            selectedIndex = index
+
+            // ✅ global rail 更新
+            engineStore.userDidSelectRow(row.id)
+
+            // ✅ block rail 更新（blockHeader / blockItem 両対応）
+            if case .blockHeader(let block) = row {
+                engineStore.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
+            }
+            if case .blockItem(let item) = row, let blockId = item.parentBlockId {
+                engineStore.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
+            }
+
+            
+
+            #if DEBUG
+            print("✅ selectedIndex = \(index) role=\(row.role) rail=\(row.id)")
+            #endif
+        }
+
     }
 
     
@@ -439,37 +482,6 @@ private struct IngredientEnginePreviewContainer: View {
 #endif
 
 
-// MARK: - 削除APIの追記・利用はViewに@Stateで状態追記する事で読み込まれる
-
-extension IngredientEngineStore {
-
-    func deleteBlock(blockId: UUID) {
-        rows.removeAll { row in
-            switch row {
-            case .blockHeader(let b):
-                return b.id == blockId
-            case .blockItem(let item):
-                return item.parentBlockId == blockId
-            default:
-                return false
-            }
-        }
-    }
-
-
-
-    func deleteRow(itemId: UUID) {
-        rows.removeAll { row in
-            switch row {
-            case .single(let item), .blockItem(let item):
-                return item.id == itemId
-            default:
-                return false
-            }
-        }
-    }
-}
-
 
 
 
@@ -503,7 +515,7 @@ extension View {
                     if !label.isEmpty {
                         Text(label)
                             .font(.caption2)
-                            .padding(4) //⚠️これ何？？
+                            .padding(4)
                             .background(.black.opacity(0.2))
                             .foregroundStyle(.white)
                     }
