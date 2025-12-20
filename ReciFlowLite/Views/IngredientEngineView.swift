@@ -1,3 +1,5 @@
+/// MARK: - IngredientEngineView.swift
+
 import SwiftUI
 
 struct IngredientEngineView: View {
@@ -69,6 +71,8 @@ struct IngredientEngineView: View {
     }
     
     //───── ブラケット部品はここに ─────//
+    // 2️⃣左から2番目の列、ブラケット領域です
+    
     private let blockIndent: CGFloat = 8
     private let bracketWidth: CGFloat = 12
 
@@ -106,17 +110,7 @@ struct IngredientEngineView: View {
         }
     }
 
-    
-    
-  
-    
-    
-//    // MARK: - デバッグ通知を一箇所にまとめ、ビルドに入らない#️⃣で扱う
-//    private func debugRowTap(_ row: IngredientRow) {
-//        #if DEBUG
-//        print("[DEBUG][RowTap]", row.role)
-//        #endif
-//    }
+
     
     // MARK: - Binding生成ヘルパー関数追加
     
@@ -211,9 +205,9 @@ struct IngredientEngineView: View {
                 .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
-//                    engineStore.loadIfNeeded() // 画面に入ったら読み込み
+                    engineStore.loadIfNeeded() // 画面に入ったら読み込み
                     #if DEBUG //🔀loadIfNeeded()を使わずDB読み込みテスト
-                    engineStore.load()
+//                    engineStore.load()
                     #endif
                 }
                 
@@ -283,6 +277,7 @@ struct IngredientEngineView: View {
     
     
     // MARK: - 📝🌟　削除・並び替えをする　「デザインではなく構造」　🌟📝
+    // 1️⃣ 削除と並び替えの一番左のレイアウトです
         
     @ViewBuilder
     private func controlColumn(for row: IngredientRow, at index: Int) -> some View {
@@ -337,13 +332,26 @@ struct IngredientEngineView: View {
     
 
     //───── 削除と並び替えをひとかたまりに ─────//　ForEachでこれを呼ぶ
-    
+    // ここが唯一の横レイアウトにしています
     @ViewBuilder
     private func rowWithControls(for row: IngredientRow, at index: Int) -> some View {
         HStack(spacing: 6) {
             controlColumn(for: row, at: index)
             rowView(for: row, at: index)
         }
+        
+        // 🟩　📝　各行の一番下の薄い罫線
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Color(.systemGray4).opacity(0.75))
+                // 左側のつまみ＋ブラケットぶん少しだけ内側から
+                .padding(.leading, 25),
+            alignment: .bottom
+        )
+        
+        
+        
         .frame(minHeight: rowHeight) //✅ 高さはここで統一
         .contentShape(Rectangle())
         .onTapGesture {
@@ -536,6 +544,7 @@ extension View {
     func debugBG(_ enabled: Bool, _ color: Color, _ label: String = "") -> some View {
         if enabled {
             self.background(color)
+                
                 .overlay(alignment: .topLeading) {
                     if !label.isEmpty {
                         Text(label)

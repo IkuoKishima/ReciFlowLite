@@ -1,3 +1,5 @@
+/// MARK: - RightRailControls.swift
+
 //ドックの代わりを担う共通部品📝ここは秘密にはならない箇所
 
 import SwiftUI
