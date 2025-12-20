@@ -24,13 +24,14 @@ struct IngredientEngineView: View {
     // MARK: - 行の高さ・行間まとめ
     private let amountWidth: CGFloat = 64 //分量フィールド幅
     private let unitWidth: CGFloat = 42 //単位フィールド幅
-    private let rowHeight: CGFloat = 36 //文字の高さ
+    private let rowHeight: CGFloat = 32 //文字の高さ
 //    private let rowVPadding: CGFloat = 0 //⚠️文字内余白
     
 
 
-
-    //───── ブラケット判定（Lite） ─────//
+    private let blockIndent: CGFloat = 8
+    private let bracketWidth: CGFloat = -4
+    // 🟧 ブロック行のブラケット位置
     private enum BracketRole {
         case none
         case top
@@ -38,77 +39,172 @@ struct IngredientEngineView: View {
         case bottom
     }
 
+//    private func bracketRoleForRow(at index: Int) -> BracketRole {
+//        guard engineStore.rows.indices.contains(index) else { return .none }
+//
+//        // blockItem 以外はブラケット対象外（Liteはここをシンプルに）
+//        guard case .blockItem(let item) = engineStore.rows[index],
+//              let blockId = item.parentBlockId else {
+//            return .none
+//        }
+//
+//        let prevIsSameBlock: Bool = {
+//            let prev = index - 1
+//            guard prev >= 0,
+//                  engineStore.rows.indices.contains(prev),
+//                  case .blockItem(let prevItem) = engineStore.rows[prev] else { return false }
+//            return prevItem.parentBlockId == blockId
+//        }()
+//
+//        let nextIsSameBlock: Bool = {
+//            let next = index + 1
+//            guard engineStore.rows.indices.contains(next),
+//                  case .blockItem(let nextItem) = engineStore.rows[next] else { return false }
+//            return nextItem.parentBlockId == blockId
+//        }()
+//
+//        switch (prevIsSameBlock, nextIsSameBlock) {
+//        case (false, false): return .top
+//        case (false, true):  return .top
+//        case (true, true):   return .middle
+//        case (true, false):  return .bottom
+//        }
+//    }
+//    
+    //───── ブラケット部品はここに ─────//
+    // 2️⃣左から2番目の列、ブラケット領域です
+    // MARK: - この index の行がブロック中ならブラケット位置を返す
+    
     private func bracketRoleForRow(at index: Int) -> BracketRole {
         guard engineStore.rows.indices.contains(index) else { return .none }
-
-        // blockItem 以外はブラケット対象外（Liteはここをシンプルに）
+        
+        // v5 では「カッコ対象」はブロック内アイテム (.blockItem) だけ
         guard case .blockItem(let item) = engineStore.rows[index],
               let blockId = item.parentBlockId else {
             return .none
         }
-
+        
+        // 直前が同じ blockId の .blockItem か？
         let prevIsSameBlock: Bool = {
             let prev = index - 1
             guard prev >= 0,
                   engineStore.rows.indices.contains(prev),
-                  case .blockItem(let prevItem) = engineStore.rows[prev] else { return false }
+                  case .blockItem(let prevItem) = engineStore.rows[prev]
+            else { return false }
             return prevItem.parentBlockId == blockId
         }()
-
+        
+        // 直後が同じ blockId の .blockItem か？
         let nextIsSameBlock: Bool = {
             let next = index + 1
             guard engineStore.rows.indices.contains(next),
-                  case .blockItem(let nextItem) = engineStore.rows[next] else { return false }
+                  case .blockItem(let nextItem) = engineStore.rows[next]
+            else { return false }
             return nextItem.parentBlockId == blockId
         }()
-
+        
         switch (prevIsSameBlock, nextIsSameBlock) {
-        case (false, false): return .top
-        case (false, true):  return .top
-        case (true, true):   return .middle
-        case (true, false):  return .bottom
+        case (false, false):
+            // 1 行だけのブロック → ひとまず top 扱い（必要なら後で専用ロール追加でもOK）
+            return .top
+        case (false, true):
+            return .top
+        case (true, true):
+            return .middle
+        case (true, false):
+            return .bottom
         }
     }
     
-    //───── ブラケット部品はここに ─────//
-    // 2️⃣左から2番目の列、ブラケット領域です
+    // MARK: - ブラケット列ビュー
     
-    private let blockIndent: CGFloat = 8
-    private let bracketWidth: CGFloat = 12
-
     @ViewBuilder
-    private func bracketColumnLite(at index: Int) -> some View {
+    private func bracketColumn(at index: Int) -> some View {
         let role = bracketRoleForRow(at: index)
 
-        switch role {
-        case .none:
-            Rectangle()
-                .opacity(0)
-                .frame(width: bracketWidth)
+        Group {
+            switch role {
+            case .none:
+                Rectangle()
+                    .opacity(0)
+                    .frame(width: 12)
+                
 
-        case .top:
-            VStack(spacing: 0) {
-                Rectangle().opacity(0).frame(height: 6)
-                Rectangle().frame(width: 1)
-                Spacer()
+            case .top:
+                BracketPartView(
+                    type: .top,
+                    style: .rounded,
+                    lineStyle: .dashed,
+                    color: .purple,
+                    lineWidth: 1,
+                    addLength: 12,
+                    extraHorizontalLength: -12
+                )
+                .frame(width: 12)
+                .offset(x: bracketWidth, y: 12)
+
+            case .middle:
+                BracketPartView(
+                    type: .line,
+                    lineStyle: .dashed,
+                    color: .purple,
+                    lineWidth: 1,
+                    addLength: 32,
+
+                )
+                .frame(width: 12, alignment: .leading)
+                .offset(x: bracketWidth)
+                
+
+            case .bottom:
+                BracketPartView(
+                    type: .bottom,
+                    style: .rounded,
+                    lineStyle: .dashed,
+                    color: .purple,
+                    lineWidth: 1,
+                    addLength: 12,
+                    extraHorizontalLength: -12
+                )
+                .frame(width: 12)
+                .offset(x: bracketWidth, y: -12)
             }
-            .frame(width: bracketWidth)
-
-        case .middle:
-            Rectangle()
-                .frame(width: 1)
-                .frame(maxHeight: .infinity)
-                .frame(width: bracketWidth)
-
-        case .bottom:
-            VStack(spacing: 0) {
-                Spacer()
-                Rectangle().frame(width: 1)
-                Rectangle().opacity(0).frame(height: 6)
-            }
-            .frame(width: bracketWidth)
         }
     }
+
+//    @ViewBuilder
+//    private func bracketColumnLite(at index: Int) -> some View {
+//        let role = bracketRoleForRow(at: index)
+//
+//        switch role {
+//        case .none:
+//            Rectangle()
+//                .opacity(0)
+//                .frame(width: bracketWidth)
+//
+//        case .top:
+//            VStack(spacing: 0) {
+//                Rectangle().opacity(0).frame(height: 6)
+//                Rectangle().frame(width: 1)
+//                Spacer()
+//            }
+//            .frame(width: bracketWidth)
+//
+//        case .middle:
+//            Rectangle()
+//                .frame(width: 1)
+//                .frame(maxHeight: .infinity)
+//                .frame(width: bracketWidth)
+//
+//        case .bottom:
+//            VStack(spacing: 0) {
+//                Spacer()
+//                Rectangle().frame(width: 1)
+//                Rectangle().opacity(0).frame(height: 6)
+//            }
+//            .frame(width: bracketWidth)
+//        }
+//    }
 
 
     
@@ -184,7 +280,7 @@ struct IngredientEngineView: View {
             
             // ✅ “紙面” 本体（スクロール）
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {//⚠️行間
+                LazyVStack(alignment: .leading, spacing: 2) {//⚠️行間広げる時罫線も伸ばす
 
                     // ✅ ここからが “single 、EngineStoreを参照して表示するから、engineStore.rows)
                     let indexedRows = Array(engineStore.rows.enumerated())
@@ -413,13 +509,13 @@ struct IngredientEngineView: View {
             case .blockHeader(let block):
                 HStack(spacing: 4) {
 
-                    // 🔹 block インデント（singleとの差）
-                    Spacer()
-                        .frame(width: blockIndent)
+//                    // 🔹 block インデント（singleとの差）
+//                    Spacer()
+//                        .frame(width: blockIndent)
 
                     // 🔹 ブラケット列（Liteではダミー）
-                    bracketColumnLite(at: index)
-                        .debugBG(DEBUG, .pink.opacity(0.12), "BR")
+//                    bracketColumn(at: index)
+//                        .debugBG(DEBUG, .pink.opacity(0.12), "1")
 
                     // 🔹 Header 本体
                     IngredientBlockHeaderRowView(
@@ -432,15 +528,15 @@ struct IngredientEngineView: View {
 
                 
             case .blockItem(let item):
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
 
                     // ブロックインデント（構造）
                     Spacer()
                         .frame(width: blockIndent)
 
                     // ブラケット列（🟡将来差し替え🟡）
-                    bracketColumnLite(at: index)
-                        .debugBG(DEBUG, .pink.opacity(0.12), "BR")
+                    bracketColumn(at: index)
+//                        .debugBG(DEBUG, .pink.opacity(0.12), "BR")
 
                     // 中身
                     HStack(spacing: 8) {
@@ -588,7 +684,7 @@ extension IngredientEngineStore {
         let block = IngredientBlock(
             parentRecipeId: store.parentRecipeId,
             orderIndex: 2,
-            title: "合わせ調味料"
+            title: "調合"
         )
 
         store.rows.append(.blockHeader(block))
@@ -597,7 +693,16 @@ extension IngredientEngineStore {
             .blockItem(.init(
                 parentRecipeId: store.parentRecipeId,
                 parentBlockId: block.id,
-                name: "砂糖",
+                name: "醤油",
+                amount: "10",
+                unit: "g"
+            ))
+        )
+        store.rows.append(
+            .blockItem(.init(
+                parentRecipeId: store.parentRecipeId,
+                parentBlockId: block.id,
+                name: "味醂",
                 amount: "10",
                 unit: "g"
             ))

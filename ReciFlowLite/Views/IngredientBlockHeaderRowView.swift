@@ -11,7 +11,7 @@ struct IngredientBlockHeaderRowView: View {
         HStack(spacing: 8) {
 
             // タイトル（今は表示だけ。次段で TextField 化してOK）
-            Text(block.title.isEmpty ? "合わせ調味料" : block.title)
+            Text(block.title.isEmpty ? "調合" : block.title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
 

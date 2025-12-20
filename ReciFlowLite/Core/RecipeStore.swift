@@ -98,11 +98,6 @@ final class RecipeStore: ObservableObject {
         DatabaseManager.shared.update(recipe: recipes[idx])
 
     }
-    
-    
-    
-    
-    
 }
 
 extension RecipeStore {

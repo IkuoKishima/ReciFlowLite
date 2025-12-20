@@ -30,6 +30,7 @@
 		901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */; };
 		901487382EEE792000B740F4 /* EngineMemo.md in Resources */ = {isa = PBXBuildFile; fileRef = 901487372EEE790500B740F4 /* EngineMemo.md */; };
 		90379D0B2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */; };
+		90379D1E2EF6DB0E00F72F6B /* BracketPartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D1D2EF6DB0E00F72F6B /* BracketPartView.swift */; };
 		90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */; };
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
@@ -80,6 +81,7 @@
 		901487352EEE747C00B740F4 /* RecipeMetaStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeMetaStrip.swift; sourceTree = "<group>"; };
 		901487372EEE790500B740F4 /* EngineMemo.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EngineMemo.md; sourceTree = "<group>"; };
 		90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEnginePreviewContainer.swift; sourceTree = "<group>"; };
+		90379D1D2EF6DB0E00F72F6B /* BracketPartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketPartView.swift; sourceTree = "<group>"; };
 		90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEngineStore.swift; sourceTree = "<group>"; };
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
@@ -202,6 +204,7 @@
 		901486C42EEBB4AB00B740F4 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				90379D1D2EF6DB0E00F72F6B /* BracketPartView.swift */,
 				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
 				90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */,
 				90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */,
@@ -391,6 +394,7 @@
 				901486CE2EEBB58B00B740F4 /* IngredientItemRowUIKitView.swift in Sources */,
 				90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */,
 				901487362EEE747C00B740F4 /* RecipeMetaStrip.swift in Sources */,
+				90379D1E2EF6DB0E00F72F6B /* BracketPartView.swift in Sources */,
 				90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */,
 				90379D0B2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift in Sources */,
 				901487262EEC375F00B740F4 /* DatabaseManager.swift in Sources */,
