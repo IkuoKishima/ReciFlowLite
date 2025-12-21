@@ -1,10 +1,3 @@
-//
-//  ReciFlowLiteTests.swift
-//  ReciFlowLiteTests
-//
-//  Created by 木嶋育朗 on 2025/12/12.
-//
-
 import Testing
 
 struct ReciFlowLiteTests {

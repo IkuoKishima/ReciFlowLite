@@ -76,60 +76,73 @@ final class DatabaseManager {
     
     // MARK: - 公開メソッド (Store から呼ぶ用)
     
-    func fetchAllRecipes() -> [Recipe] {
+    func fetchAllRecipes() async -> [Recipe] {
         guard let db = db else { return [] }
 
-        var result: [Recipe] = []
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                var result: [Recipe] = []
 
-        let sql = """
-        SELECT id, title, memo, createdAt, updatedAt
-        FROM recipes
-        ORDER BY createdAt DESC;
-        """
+                let sql = """
+                SELECT id, title, memo, createdAt, updatedAt
+                FROM recipes
+                ORDER BY createdAt DESC;
+                """
 
-        queue.sync {
-            var statement: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                defer { sqlite3_finalize(statement) }
+                var statement: OpaquePointer?
+                if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                    defer { sqlite3_finalize(statement) }
 
-                while sqlite3_step(statement) == SQLITE_ROW {
-                    if let recipe = readRecipeRow(statement: statement) {
-                        result.append(recipe)
+                    while sqlite3_step(statement) == SQLITE_ROW {
+                        if let recipe = DatabaseManager.readRecipeRow(statement: statement) {
+                            result.append(recipe)
+                        }
                     }
-                }
-            } else {
-                let errorMsg = String(cString: sqlite3_errmsg(db))
-                print("❌ fetchAllRecipes prepare error: \(errorMsg)")
-            }
-        }
-
-        return result
-    }
-
-    
-    func insert(recipe: Recipe) {
-        guard let db = db else { return }
-
-        let sql = """
-        INSERT INTO recipes (id, title, memo, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?);
-        """
-
-        queue.sync {
-            var statement: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                bind(recipe: recipe, to: statement)
-                if sqlite3_step(statement) == SQLITE_DONE {
-                    print("✅ Inserted recipe: \(recipe.id)")
                 } else {
                     let errorMsg = String(cString: sqlite3_errmsg(db))
-                    print("❌ insert error: \(errorMsg)")
+                    print("❌ fetchAllRecipes prepare error: \(errorMsg)")
                 }
+
+                continuation.resume(returning: result)
             }
-            sqlite3_finalize(statement)
         }
     }
+
+
     
+    func insert(recipe: Recipe) async -> Bool {
+        guard let db = db else { return false }
+
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                let sql = """
+                INSERT INTO recipes (id, title, memo, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?);
+                """
+
+                var statement: OpaquePointer?
+                if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                    defer { sqlite3_finalize(statement) }
+
+                    DatabaseManager.bind(recipe: recipe, to: statement)
+
+                    if sqlite3_step(statement) == SQLITE_DONE {
+                        print("✅ Inserted recipe: \(recipe.id)")
+                        continuation.resume(returning: true)
+                    } else {
+                        let errorMsg = String(cString: sqlite3_errmsg(db))
+                        print("❌ insert step error: \(errorMsg)")
+                        continuation.resume(returning: false)
+                    }
+                } else {
+                    let errorMsg = String(cString: sqlite3_errmsg(db))
+                    print("❌ insert prepare error: \(errorMsg)")
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+    }
+
     
     
     // 注意: update は「変更確定」を意味する（閲覧ログではない）。
@@ -144,7 +157,7 @@ final class DatabaseManager {
         WHERE id = ?;
         """
 
-        queue.sync {
+        queue.async {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 // バインドの順番に注意（SQLの ? の順）
@@ -170,7 +183,7 @@ final class DatabaseManager {
 
         let sql = "DELETE FROM recipes WHERE id = ?;"
 
-        queue.sync {
+        queue.async {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 sqlite3_bind_text(statement, 1, (recipeID.uuidString as NSString).utf8String, -1, nil)
@@ -190,7 +203,7 @@ final class DatabaseManager {
     private func execute(sql: String) {
         guard let db = db else { return }
 
-        queue.sync {
+        queue.async {
             var errorMessage: UnsafeMutablePointer<Int8>?
             if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK {
                 if let errorMessage = errorMessage {
@@ -204,7 +217,7 @@ final class DatabaseManager {
         }
     }
     
-    private func readRecipeRow(statement: OpaquePointer?) -> Recipe? {
+    private static func readRecipeRow(statement: OpaquePointer?) -> Recipe? {
         guard let stmt = statement else { return nil }
 
         // カラム index は SELECT の順番に対応
@@ -236,7 +249,7 @@ final class DatabaseManager {
         )
     }
     
-    private func bind(recipe: Recipe, to statement: OpaquePointer?) {
+    private static func bind(recipe: Recipe, to statement: OpaquePointer?) { //✅バインドのシグネチャ
         guard let stmt = statement else { return }
 
         sqlite3_bind_text(stmt, 1, (recipe.id.uuidString as NSString).utf8String, -1, nil)
@@ -274,7 +287,7 @@ extension DatabaseManager {
         );
         """
 
-        queue.sync {
+        queue.async {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 defer { sqlite3_finalize(statement) }
@@ -303,7 +316,7 @@ extension DatabaseManager {
 
         var result: [IngredientRow] = []
 
-        queue.sync {
+        queue.async {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 defer { sqlite3_finalize(statement) }
@@ -415,7 +428,7 @@ extension DatabaseManager {
     func replaceIngredientRows(recipeId: UUID, rows: [IngredientRow]) {
         guard let db = db else { return }
 
-        queue.sync {
+        queue.async {
             // トランザクションで一括確定（途中落ちでも中途半端になりにくい）
             sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION;", nil, nil, nil)
             defer { sqlite3_exec(db, "COMMIT;", nil, nil, nil) }

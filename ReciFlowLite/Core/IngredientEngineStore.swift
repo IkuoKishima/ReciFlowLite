@@ -116,60 +116,64 @@ final class IngredientEngineStore: ObservableObject {
 
     // MARK: - 読込（実践ビルド用）
     func loadIfNeeded() {
-        #if DEBUG
+#if DEBUG
         print("🟦 loadIfNeeded start recipeId=\(parentRecipeId)")
-        #endif
-
+#endif
+        
         if !rows.isEmpty {
-            #if DEBUG
+#if DEBUG
             print("🟦 loadIfNeeded early return (rows already exist) count=\(rows.count)")
-            #endif
+#endif
             return
         }
-
-        DatabaseManager.shared.createIngredientTablesIfNeeded()
-
-        #if DEBUG
-        print("🟦 fetchIngredientRows start")
-        #endif
-        let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
-        #if DEBUG
-        print("🟦 fetchIngredientRows end count=\(loaded.count)")
-        #endif
-
-        if !loaded.isEmpty {
-            rows = loaded
-
-            // ✅ load() と同じ“整合”を必ず実行
-            reindexAll()
-            globalRailRowId = rows.last?.id
-
-            blockInsertAnchorId = [:]
-            for row in rows {
-                if case .blockItem(let item) = row, let blockId = item.parentBlockId {
-                    blockInsertAnchorId[blockId] = row.id
+        
+        Task {
+            DatabaseManager.shared.createIngredientTablesIfNeeded()
+            let loaded = await DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+            await MainActor.run {
+                
+                DatabaseManager.shared.createIngredientTablesIfNeeded()
+                
+#if DEBUG
+                print("🟦 fetchIngredientRows start")
+#endif
+                let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+#if DEBUG
+                print("🟦 fetchIngredientRows end count=\(loaded.count)")
+#endif
+                
+                if !loaded.isEmpty {
+                    rows = loaded
+                    
+                    // ✅ load() と同じ“整合”を必ず実行
+                    reindexAll()
+                    globalRailRowId = rows.last?.id
+                    
+                    blockInsertAnchorId = [:]
+                    for row in rows {
+                        if case .blockItem(let item) = row, let blockId = item.parentBlockId {
+                            blockInsertAnchorId[blockId] = row.id
+                        }
+                    }
+                    
+                    isDirty = false
+                    return
                 }
+                
+                // ✅ DBが空＝“初回”の扱い
+                // 本番は seed を入れない（勝手に材料が入る事故を防ぐ）
+                rows = [.single(.init(parentRecipeId: parentRecipeId))]
+                reindexAll()
+                globalRailRowId = rows.last?.id
+                blockInsertAnchorId = [:]
+                isDirty = false
+                
+                #if DEBUG
+                print("🟦 first seed: one empty single row")
+                #endif
             }
-
-            isDirty = false
-            return
         }
-
-        // ✅ DBが空＝“初回”の扱い
-        // 本番は seed を入れない（勝手に材料が入る事故を防ぐ）
-        rows = [.single(.init(parentRecipeId: parentRecipeId))]
-        reindexAll()
-        globalRailRowId = rows.last?.id
-        blockInsertAnchorId = [:]
-        isDirty = false
-
-        #if DEBUG
-        print("🟦 first seed: one empty single row")
-        #endif
     }
-
-
-   
 }
 // MARK: - 追加API（v15準拠：入力で増えない / 追加はドック起点）
 
