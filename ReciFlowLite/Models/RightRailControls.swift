@@ -33,7 +33,7 @@ struct RightRailControls: View {
     
 
     private let railWidth: CGFloat = 38 // 28数字を減らすと右のスワイプレールが狭くなるが反応が鈍る
-    private let buttonSize: CGFloat = 44
+    private let buttonSize: CGFloat = 30
 
     var body: some View {
         GeometryReader { geo in
@@ -41,7 +41,7 @@ struct RightRailControls: View {
 
                 // ───────── 透明スワイプレール（右端） ─────────
                 Rectangle()
-                    .fill(Color.red.opacity(0.05))//(.clear)✅着色して領域を見えるようにしている、変更はクリアに差し替えること
+                    .fill(Color.red.opacity(0.02))//(.clear)✅着色して領域を見えるようにしている、変更はクリアに差し替えること
                     .frame(width: railWidth)
                     .contentShape(Rectangle())
                     .gesture(
@@ -58,7 +58,7 @@ struct RightRailControls: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
 
                 // ───────── 右端55〜60%：縦2段ボタン ─────────
-                VStack(spacing: 10) {
+                VStack(spacing: 16) {
                     
                     // 🗑 削除モード切替
                     if showsDelete {
@@ -112,7 +112,7 @@ struct RightRailControls: View {
                     }
                 }
                 .position(
-                    x: geo.size.width - 28,
+                    x: geo.size.width - 18,
                     y: geo.size.height * 0.58   // ボタンの配置を決める上から58%（=下から42%）
                 )
             }

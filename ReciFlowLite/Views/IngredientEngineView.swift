@@ -23,8 +23,8 @@ struct IngredientEngineView: View {
 
     // MARK: - ──── 行の高さ・行間はここの集約　 ─────　//
     
-    private let amountWidth: CGFloat = 64 //分量フィールド幅
-    private let unitWidth: CGFloat = 42 //単位フィールド幅
+    private let amountWidth: CGFloat = 42 //分量フィールド幅
+    private let unitWidth: CGFloat = 66 //単位フィールド幅
 
     private let rowHeightSingle: CGFloat      = 36  // 単体＆blockItem
     private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
@@ -242,7 +242,7 @@ struct IngredientEngineView: View {
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
 
-                .padding(.trailing, 4) // ⚠️右干渉回避
+                .padding(.trailing, 15) // ⚠️右干渉回避
 //                .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
@@ -418,27 +418,41 @@ struct IngredientEngineView: View {
             switch row {
                 
             case .single(let item):
-                HStack(spacing: 8) { //⚠️🍽️内側寄せ
-                    TextField("材料", text: bindingForItemField(
-                        itemId: item.id,
-                        get: { $0.name },
-                        set: { $0.name = $1 }
-                    ))
+                HStack(spacing: 8) { //⚠️内側寄せ
+                    SelectAllTextField(
+                        text: bindingForItemField(
+                            itemId: item.id,
+                            get: { $0.name },
+                            set: { $0.name = $1 }
+                        ),
+                        placeholder: "材料"
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 36)
                     
-                    TextField("分量", text: bindingForItemField(
-                        itemId: item.id,
-                        get: { $0.amount },
-                        set: { $0.amount = $1 }
-                    ))
+                    
+                    SelectAllTextField(
+                        text: bindingForItemField(
+                            itemId: item.id,
+                            get: { $0.amount },
+                            set: { $0.amount = $1 }
+                        ),
+                        placeholder: "分量",
+                        textAlignment: .right,     //右寄せ
+                        keyboardType: .decimalPad //数字キーボード
+                    )
                     .frame(width: amountWidth, alignment: .trailing)
-                    .multilineTextAlignment(.trailing)
-                    
-                    TextField("単位", text: bindingForItemField(
-                        itemId: item.id,
-                        get: { $0.unit },
-                        set: { $0.unit = $1 }
-                    ))
+
+
+
+                    SelectAllTextField(
+                        text: bindingForItemField(
+                            itemId: item.id,
+                            get: { $0.unit },
+                            set: { $0.unit = $1 }
+                    ),
+                        placeholder: "単位",
+                    )
                     .frame(width: unitWidth, alignment: .leading)
                 }
 
@@ -473,26 +487,41 @@ struct IngredientEngineView: View {
 
                     // 中身
                     HStack(spacing: 8) {
-                        TextField("材料", text: bindingForItemField(
-                            itemId: item.id,
-                            get: { $0.name },
-                            set: { $0.name = $1 }
-                        ))
+                        
+                        SelectAllTextField(
+                            text: bindingForItemField(
+                                itemId: item.id,
+                                get: { $0.name },
+                                set: { $0.name = $1 }
+                            ),
+                            placeholder: "材料"
+                        )
                         .frame(maxWidth: .infinity, alignment: .leading)
-
-                        TextField("分量", text: bindingForItemField(
-                            itemId: item.id,
-                            get: { $0.amount },
-                            set: { $0.amount = $1 }
-                        ))
+                        .frame(height: 36)
+                        
+                        
+                        SelectAllTextField(
+                            text: bindingForItemField(
+                                itemId: item.id,
+                                get: { $0.amount },
+                                set: { $0.amount = $1 }
+                            ),
+                            placeholder: "分量",
+                            textAlignment: .right,     //右寄せ
+                            keyboardType: .decimalPad //数字キーボード
+                        )
                         .frame(width: amountWidth, alignment: .trailing)
-                        .multilineTextAlignment(.trailing)
 
-                        TextField("単位", text: bindingForItemField(
-                            itemId: item.id,
-                            get: { $0.unit },
-                            set: { $0.unit = $1 }
-                        ))
+
+
+                        SelectAllTextField(
+                            text: bindingForItemField(
+                                itemId: item.id,
+                                get: { $0.unit },
+                                set: { $0.unit = $1 }
+                        ),
+                            placeholder: "単位",
+                        )
                         .frame(width: unitWidth, alignment: .leading)
                     }
                 }
@@ -624,8 +653,8 @@ extension IngredientEngineStore {
                 parentRecipeId: store.parentRecipeId,
                 parentBlockId: block.id,
                 name: "醤油",
-                amount: "10",
-                unit: "g"
+                amount: "1234",
+                unit: "大さじ１"
             ))
         )
         store.rows.append(
