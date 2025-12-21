@@ -157,7 +157,7 @@ final class DatabaseManager {
         WHERE id = ?;
         """
 
-        queue.async {
+        queue.sync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 // バインドの順番に注意（SQLの ? の順）
@@ -183,7 +183,7 @@ final class DatabaseManager {
 
         let sql = "DELETE FROM recipes WHERE id = ?;"
 
-        queue.async {
+        queue.sync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 sqlite3_bind_text(statement, 1, (recipeID.uuidString as NSString).utf8String, -1, nil)
@@ -203,7 +203,7 @@ final class DatabaseManager {
     private func execute(sql: String) {
         guard let db = db else { return }
 
-        queue.async {
+        queue.sync {
             var errorMessage: UnsafeMutablePointer<Int8>?
             if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK {
                 if let errorMessage = errorMessage {
@@ -287,7 +287,7 @@ extension DatabaseManager {
         );
         """
 
-        queue.async {
+        queue.sync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 defer { sqlite3_finalize(statement) }
@@ -316,7 +316,7 @@ extension DatabaseManager {
 
         var result: [IngredientRow] = []
 
-        queue.async {
+        queue.sync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 defer { sqlite3_finalize(statement) }
@@ -428,7 +428,7 @@ extension DatabaseManager {
     func replaceIngredientRows(recipeId: UUID, rows: [IngredientRow]) {
         guard let db = db else { return }
 
-        queue.async {
+        queue.sync {
             // トランザクションで一括確定（途中落ちでも中途半端になりにくい）
             sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION;", nil, nil, nil)
             defer { sqlite3_exec(db, "COMMIT;", nil, nil, nil) }

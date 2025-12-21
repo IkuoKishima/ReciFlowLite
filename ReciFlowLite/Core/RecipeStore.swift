@@ -27,15 +27,14 @@ final class RecipeStore: ObservableObject {
     //読み込み系API
     func loadRecipes() {
         isLoading = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            let fetched = DatabaseManager.shared.fetchAllRecipes()
-            DispatchQueue.main.async {
-                self.recipes = fetched
-                self.isLoading = false
-            }
+
+        Task { @MainActor in
+            let fetched = await DatabaseManager.shared.fetchAllRecipes()
+            self.recipes = fetched
+            self.isLoading = false
         }
-        
     }
+
     
     //参照系API
     func recipe(for id: UUID) -> Recipe? {
@@ -57,7 +56,7 @@ final class RecipeStore: ObservableObject {
     
     
     @discardableResult
-    func addNewRecipeAndPersist() -> UUID {
+    func addNewRecipeAndPersist() async -> UUID {
         let now = Date()
         let title = "New" //足されるものに日付と時間を追加している
 
@@ -70,7 +69,7 @@ final class RecipeStore: ObservableObject {
         )
         recipes.insert(new, at: 0) // ここの書き換えで先頭追加から末尾追加に変わる、リストの性質上上から下表示なので、ここで変更せずクエリで抽出にする
 
-        DatabaseManager.shared.insert(recipe: new)
+        await DatabaseManager.shared.insert(recipe: new)
         return new.id
     }
 

@@ -36,29 +36,24 @@ struct RecipeListView: View {
             }
         }
 
-        .overlay(alignment: .bottomTrailing) { // ✅ List全体に1個だけ
+        .overlay(alignment: .bottomTrailing) {
             Button {
-                let newId = store.addNewRecipeAndPersist()
-                path.append(.edit(newId))
+                Task {
+                    let newId = await store.addNewRecipeAndPersist()
+                    await MainActor.run {
+                        path.append(.edit(newId))
+                    }
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.title2.weight(.semibold))
-                    .frame(width: 56, height: 56)
+                    .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
             }
             .padding(.trailing, 18)
             .padding(.bottom, 18)
         }
-
     }
 }
 
-
-//#Preview {
-//    NavigationStack {
-//        RecipeListView(
-//            store: .preview
-//        )
-//    }
-//}
