@@ -32,8 +32,8 @@ struct RightRailControls: View {
     let onSwipeRight: () -> Void
     
 
-    private let railWidth: CGFloat = 56 // 28数字を減らすと右のスワイプレールが狭くなるが反応が鈍る
-    private let buttonSize: CGFloat = 54
+    private let railWidth: CGFloat = 38 // 28数字を減らすと右のスワイプレールが狭くなるが反応が鈍る
+    private let buttonSize: CGFloat = 44
 
     var body: some View {
         GeometryReader { geo in

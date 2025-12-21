@@ -42,7 +42,7 @@ let _ = Self._debugBodyTick()
                 .frame(minHeight: 140)
                 .overlay(alignment: .topLeading) {
                     if memo.isEmpty {
-                        Text("Memo")
+                        Text("作りかた")
                             .foregroundStyle(.secondary)
                             .padding(.top, 8)
                             .padding(.leading, 5)
@@ -55,7 +55,7 @@ let _ = Self._debugBodyTick()
         .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
 
         .padding(16)
-        .navigationTitle("概要")
+        .navigationTitle("レシピ名")
         .onAppear {
           #if DEBUG
           print("[DEBUG] Edit onAppear start")

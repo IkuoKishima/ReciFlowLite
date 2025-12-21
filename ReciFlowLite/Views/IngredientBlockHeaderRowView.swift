@@ -26,9 +26,9 @@ struct IngredientBlockHeaderRowView: View {
                 print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
                 #endif
             } label: {
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: "plus.circle")
                     .font(.footnote.weight(.semibold))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 30, height: 30)
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
             }

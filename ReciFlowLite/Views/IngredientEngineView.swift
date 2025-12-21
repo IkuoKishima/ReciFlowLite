@@ -7,9 +7,9 @@ struct IngredientEngineView: View {
     let DEBUG = true ////🟡エクステンションでデバッグ背景を有効にする
     @ObservedObject var engineStore: IngredientEngineStore // rows用（本体）
     @ObservedObject var recipeStore: RecipeStore          // レシピメタ用（必要なら）
-    //ルーター配置
+    //ルーター配置予定
     @State private var isDeleteMode = false // 削除モード
-    // 並替モード配置
+    // 並替モード配置予定
     @State private var selectedIndex: Int? = nil //🚧ここを止める予定
 
 
@@ -21,14 +21,15 @@ struct IngredientEngineView: View {
 
 
 
-    // MARK: - 行の高さ・行間まとめ
+    // MARK: - ──── 行の高さ・行間はここの集約　 ─────　//
+    
     private let amountWidth: CGFloat = 64 //分量フィールド幅
     private let unitWidth: CGFloat = 42 //単位フィールド幅
-//    private let rowHeight: CGFloat = 36 //文字の高さ
+
     private let rowHeightSingle: CGFloat      = 36  // 単体＆blockItem
     private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
     
-    // 行ごとの高さ
+    // ブロックアイテム行の高さを補正
     private func rowHeight(for row: IngredientRow) -> CGFloat {
         switch row {
         case .blockHeader: return rowHeightBlockHeader
@@ -39,8 +40,13 @@ struct IngredientEngineView: View {
     
 
 
-
-    // 🟧 ブロック行のブラケット位置
+    
+    
+    // MARK: - ────　ブラケット部品はここの集約　 ─────　//
+   
+    private let blockIndent: CGFloat = 8
+    private let bracketWidth: CGFloat = 12 //bracketWidth は正値、食い込みは offset が地雷を作らない鍵
+// 2️⃣左から2番目の列、ブロック行のブラケット位置
     private enum BracketRole {
         case none
         case top
@@ -48,11 +54,8 @@ struct IngredientEngineView: View {
         case bottom
     }
 
-    private let blockIndent: CGFloat = 8
-    private let bracketWidth: CGFloat = 12
-    //───── ブラケット部品はここに ─────//
-    // 2️⃣左から2番目の列、ブラケット領域です
-    // MARK: - この index の行がブロック中ならブラケット位置を返す
+
+    // この index の行がブロック中ならブラケット位置を返す
     
     private func bracketRoleForRow(at index: Int) -> BracketRole {
         guard engineStore.rows.indices.contains(index) else { return .none }
@@ -95,7 +98,7 @@ struct IngredientEngineView: View {
         }
     }
     
-    
+    // ブロックアイテムとのブラケット距離はオフセットマイナスで決める
     @ViewBuilder
     private func bracketColumn(at index: Int) -> some View {
     let role = bracketRoleForRow(at: index)
@@ -107,7 +110,6 @@ struct IngredientEngineView: View {
                 .opacity(0)
                 .frame(width: 12)
                 
-
         case .top:
             BracketPartView(
                 type: .top,
@@ -148,75 +150,7 @@ struct IngredientEngineView: View {
          }
      }
  }
-    
-    //    private func bracketRoleForRow(at index: Int) -> BracketRole {
-    //        guard engineStore.rows.indices.contains(index) else { return .none }
-    //
-    //        // blockItem 以外はブラケット対象外（Liteはここをシンプルに）
-    //        guard case .blockItem(let item) = engineStore.rows[index],
-    //              let blockId = item.parentBlockId else {
-    //            return .none
-    //        }
-    //
-    //        let prevIsSameBlock: Bool = {
-    //            let prev = index - 1
-    //            guard prev >= 0,
-    //                  engineStore.rows.indices.contains(prev),
-    //                  case .blockItem(let prevItem) = engineStore.rows[prev] else { return false }
-    //            return prevItem.parentBlockId == blockId
-    //        }()
-    //
-    //        let nextIsSameBlock: Bool = {
-    //            let next = index + 1
-    //            guard engineStore.rows.indices.contains(next),
-    //                  case .blockItem(let nextItem) = engineStore.rows[next] else { return false }
-    //            return nextItem.parentBlockId == blockId
-    //        }()
-    //
-    //        switch (prevIsSameBlock, nextIsSameBlock) {
-    //        case (false, false): return .top
-    //        case (false, true):  return .top
-    //        case (true, true):   return .middle
-    //        case (true, false):  return .bottom
-    //        }
-    //    }
-    //
-
-//    @ViewBuilder
-//    private func bracketColumnLite(at index: Int) -> some View {
-//        let role = bracketRoleForRow(at: index)
-//
-//        switch role {
-//        case .none:
-//            Rectangle()
-//                .opacity(0)
-//                .frame(width: bracketWidth)
-//
-//        case .top:
-//            VStack(spacing: 0) {
-//                Rectangle().opacity(0).frame(height: 6)
-//                Rectangle().frame(width: 1)
-//                Spacer()
-//            }
-//            .frame(width: bracketWidth)
-//
-//        case .middle:
-//            Rectangle()
-//                .frame(width: 1)
-//                .frame(maxHeight: .infinity)
-//                .frame(width: bracketWidth)
-//
-//        case .bottom:
-//            VStack(spacing: 0) {
-//                Spacer()
-//                Rectangle().frame(width: 1)
-//                Rectangle().opacity(0).frame(height: 6)
-//            }
-//            .frame(width: bracketWidth)
-//        }
-//    }
-
-
+  
     
     // MARK: - Binding生成ヘルパー関数追加
     
@@ -282,31 +216,29 @@ struct IngredientEngineView: View {
     }
 
 
-// MARK: - ページ本体
+    // MARK: - ===== 💬　表示ページ本体はここから　💬　=====　//
     
     var body: some View {
         ZStack(alignment: .topLeading) {
 
-            // ===== ✅ “紙面”スクロール本体 =====
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
 
-                    // ✅ ここからが “single
+
                     //EngineStoreを参照して表示するから、engineStore.rows)
                     let indexedRows = Array(engineStore.rows.enumerated())
 
                     ForEach(indexedRows, id: \.element.id) { index, row in
                         rowWithControls(for: row, at: index)
                         
+                        //SwiftUIの行間を以下で制御する
                         .padding(.horizontal, 8) //⚠️画面端からの距離
                         .frame(height: rowHeight(for: row))//ヘッダ高連携
-//                        .debugBG(DEBUG, .orange.opacity(0.2), "この範囲が更新")
+//                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
                     }
 
 
                     .animation(.snappy, value: isDeleteMode)
-
-
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
 
@@ -314,15 +246,14 @@ struct IngredientEngineView: View {
 //                .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
-                    engineStore.loadIfNeeded() // 画面に入ったら読み込み
-                    #if DEBUG //🔀loadIfNeeded()を使わずDB読み込みテスト
+                    engineStore.loadIfNeeded() // 🔀本番用画面に入ったら読み込み
+                    #if DEBUG //🔀loadIfNeeded()を使わない　DB読み込みテスト
 //                    engineStore.load()
                     #endif
                 }
                 
                 .onDisappear {
-                    // ✅ 予約中があっても必ず確定保存
-                    engineStore.flushSave(reason: "onDisappear")
+                    engineStore.flushSave(reason: "onDisappear")// ✅ 予約中があっても必ず確定保存
                 #if DEBUG
                     print("✅ saved & cleared \(engineStore.rows.count) rows")
                 #endif
@@ -338,14 +269,19 @@ struct IngredientEngineView: View {
 
 
             }
-//            .debugBG(DEBUG, Color.purple.opacity(0.05), "SCROLL")
-
+//            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
         }
         .navigationBarBackButtonHidden(true)
-        .padding(0) // ← “紙面”を削らない。余白はScroll内で管理
+        .padding(0) // “紙面”を削らない。余白はScroll内で管理
         
-        // MARK: - 初期化された右ドックボタン順に配置・ここでアイテム追加削除の指示をする
         
+        
+        
+        
+        
+        // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
+    
+        //初期化順に配置
         //⚠️ここで仮ドックボタンを呼んでいるが、順序はRightRailControlsで書いた順
         .overlay {
             RightRailControls(
@@ -360,14 +296,14 @@ struct IngredientEngineView: View {
                     let inserted = engineStore.addSingleAtGlobalRail()
                     selectedIndex = inserted
                 },
+                
                 onAddBlock: {
                     let inserted = engineStore.addBlockHeaderAtGlobalRail()
                     selectedIndex = inserted
                 },
 
                 
-                
-                // ✅ ひとまず onPrimary を「＋」に割り当て（最短で追加が動く）
+                // onPrimary を「＋」に割り当て（最短で追加が動く）
                 onPrimary: { if !path.isEmpty { path.removeLast() } },
 
                 onHome: { path = [] },
@@ -375,22 +311,18 @@ struct IngredientEngineView: View {
                 onSwipeRight: { if !path.isEmpty { path.removeLast() } }
             )
         }
-        .navigationTitle("Ingredients")
+        .navigationTitle("材料")
     }
-
     //✅ここはボディの外
    
- 
-    
-    // MARK: -　IngredientEngine_v15 型構造の導入
     
     
-    // MARK: - 📝🌟　削除・並び替えをする　「デザインではなく構造」　🌟📝
-    // 1️⃣ 削除と並び替えの一番左のレイアウトです
+    // MARK: - ──── 📝🌟　削除・並び替えをする　「デザインではなく構造」　🌟📝 ──── //
         
     @ViewBuilder
     private func controlColumn(for row: IngredientRow, at index: Int) -> some View {
-        Image(systemName: "minus.circle.fill")
+       
+        Image(systemName: "minus.circle.fill")  //　削除時に左に出すボタン
             .font(.body.weight(.semibold))
             .foregroundStyle(.red)
             .opacity(isDeleteMode ? 1 : 0)
@@ -430,17 +362,7 @@ struct IngredientEngineView: View {
 //            .debugBG(DEBUG, .red.opacity(0.12), "D")
     }
 
-    
-    
-    //───── rowView を「中身だけ」） ─────//
-    @ViewBuilder
-    private func rowView(for row: IngredientRow, at index: Int) -> some View {
-        contentForRow(row, at: index)
-        
-    }
-    
-
-    //───── 削除と並び替えをひとかたまりに ─────//　ForEachでこれを呼ぶ
+    // MARK: -  ───── 削除と並び替えをひとかたまりに ───── //　ForEachでこれを呼ぶ
     // ここが唯一の横レイアウトにしています
     @ViewBuilder
     private func rowWithControls(for row: IngredientRow, at index: Int) -> some View {
@@ -449,18 +371,15 @@ struct IngredientEngineView: View {
             rowView(for: row, at: index)
         }
         
-        // 🟩　📝　各行の一番下の薄い罫線
+        
+        // 【 下線 】
         .overlay(
             Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Color(.systemGray4).opacity(0.75))
-                // 左側のつまみ＋ブラケットぶん少しだけ内側から
-                .padding(.leading, 20),
+                .frame(height: 0.8) //線の太さ
+                .foregroundColor(Color(.systemGray4).opacity(0.75)) //線の濃さ
+                .padding(.leading, 25),// 左端からの距離
             alignment: .bottom
         )
-        
-        
-        
         .frame(minHeight: rowHeightSingle) //✅ 高さはここで統一
         .contentShape(Rectangle())
         .onTapGesture {
@@ -485,7 +404,12 @@ struct IngredientEngineView: View {
 
 
     }
-
+    //───── rowView を「中身だけ」） ─────//
+    @ViewBuilder
+    private func rowView(for row: IngredientRow, at index: Int) -> some View {
+        contentForRow(row, at: index)
+        
+    }
     
     //ここで表示するレコードの処理を配置する
     //───── 行としての本体 ───── ✅冒頭定数設定で、amount/unit領域の調整は一元化
@@ -577,10 +501,7 @@ struct IngredientEngineView: View {
     
     
     
-    
 
-
-    
     //構造体の先端
     
 }
