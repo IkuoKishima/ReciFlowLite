@@ -9,6 +9,8 @@ struct IngredientEngineView: View {
     @ObservedObject var store: IngredientEngineStore
     @State private var isDeleteMode = false // 削除モード
     @State private var selectedIndex: Int? = nil //🚧ここを止める予定
+    
+    
 
     
     // 🆕 外から注入される“アプリ操作”
@@ -37,8 +39,8 @@ struct IngredientEngineView: View {
     private let unitWidth: CGFloat = 66 //単位フィールド幅
     private let leftGutterWidth: CGFloat = 20 //左ガターの幅
 
-    private let rowHeightSingle: CGFloat      = 36  // 単体＆blockItem
-    private let rowHeightBlockHeader: CGFloat = 36 //見出しだけ少し高く
+    private let rowHeightSingle: CGFloat      = 34  // 単体＆blockItem
+    private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
     
     // ブロックアイテム行の高さを補正
     private func rowHeight(for row: IngredientRow) -> CGFloat {
@@ -253,7 +255,7 @@ struct IngredientEngineView: View {
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
 
-                .padding(.trailing, 30) // ⚠️右干渉回避
+                .padding(.trailing, 20) // ⚠️右干渉回避
 //                .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
@@ -391,7 +393,7 @@ struct IngredientEngineView: View {
         // 【 下線 】
         .overlay(
             Rectangle()
-                .frame(height: 0.8) //線の太さ
+                .frame(height: 0.7) //線の太さ
                 .foregroundColor(Color(.systemGray4).opacity(0.75)) //線の濃さ
                 .padding(.leading, leftGutterWidth),
             alignment: .bottom
@@ -447,8 +449,9 @@ struct IngredientEngineView: View {
                                 store.pendingFocusItemId = nil
                             }
                         )
+//                    .debugBG(DEBUG, Color.orange.opacity(0.6), "Single")//✅
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 36)
+                    .frame(height: 30)
                     
                     
                     SelectAllTextField(
@@ -482,6 +485,7 @@ struct IngredientEngineView: View {
                     // 🔹 block インデント（singleとの差）
                     Spacer()
                         .frame(width: blockIndent)
+                    
 
                     // 🔹 Header 本体
                     IngredientBlockHeaderRowView(
@@ -491,6 +495,7 @@ struct IngredientEngineView: View {
                         selectedIndex = inserted
                     }
                 }
+//                .debugBG(DEBUG, Color.blue.opacity(0.6), "header")//✅
 
                 
                 
@@ -517,7 +522,8 @@ struct IngredientEngineView: View {
                             placeholder: "材料"
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(height: 36)
+                        .frame(height: 30)
+//                        .debugBG(DEBUG, Color.blue.opacity(0.6), "block")//✅
                         
                         
                         SelectAllTextField(

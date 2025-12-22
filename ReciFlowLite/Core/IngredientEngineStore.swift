@@ -20,8 +20,35 @@ final class IngredientEngineStore: ObservableObject {
     private var saveWorkItem: DispatchWorkItem?
     private let debounceSeconds: TimeInterval = 0.6
     
+    //Taskが画面遷移で複数回走る可能性へのロック
+    private var isLoading = false
+    
     @Published var pendingFocusItemId: UUID? = nil //追加アイテムに即フォーカスさせるためidを持たせる
     
+    //調合タイトルの記録
+    // rows に入ってる blockHeader から title を読む
+    func titleForBlock(_ id: UUID) -> String {
+        for row in rows {
+            if case .blockHeader(let block) = row, block.id == id {
+                return block.title
+            }
+        }
+        return ""
+    }
+
+    // rows に入ってる blockHeader の title を書き換える
+    func updateBlockTitle(_ id: UUID, _ title: String) {
+        guard let i = rows.firstIndex(where: {
+            if case .blockHeader(let b) = $0 { return b.id == id }
+            return false
+        }) else { return }
+
+        if case .blockHeader(var block) = rows[i] {
+            block.title = title
+            rows[i] = .blockHeader(block)
+            markDirtyAndScheduleSave(reason: "updateBlockTitle")
+        }
+    }
 
     
     // MARK: - 初期化処理
@@ -118,64 +145,65 @@ final class IngredientEngineStore: ObservableObject {
 
     // MARK: - 読込（実践ビルド用）
     func loadIfNeeded() {
-#if DEBUG
+        if isLoading { return }
+
+    #if DEBUG
         print("🟦 loadIfNeeded start recipeId=\(parentRecipeId)")
-#endif
-        
+    #endif
+
+        // ✅ 先に rows を見て、必要なときだけロックする（安全）
         if !rows.isEmpty {
-#if DEBUG
+    #if DEBUG
             print("🟦 loadIfNeeded early return (rows already exist) count=\(rows.count)")
-#endif
+    #endif
             return
         }
-        
+
+        isLoading = true
+
         Task {
             DatabaseManager.shared.createIngredientTablesIfNeeded()
+
+            // ✅ ここで1回だけ取得（async版）
             let loaded = await DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
+
             await MainActor.run {
-                
-                DatabaseManager.shared.createIngredientTablesIfNeeded()
-                
-#if DEBUG
-                print("🟦 fetchIngredientRows start")
-#endif
-                let loaded = DatabaseManager.shared.fetchIngredientRows(recipeId: parentRecipeId)
-#if DEBUG
+                defer { self.isLoading = false }   // ✅ 絶対解除
+
+    #if DEBUG
                 print("🟦 fetchIngredientRows end count=\(loaded.count)")
-#endif
-                
+    #endif
+
                 if !loaded.isEmpty {
                     rows = loaded
-                    
-                    // ✅ load() と同じ“整合”を必ず実行
                     reindexAll()
                     globalRailRowId = rows.last?.id
-                    
+
                     blockInsertAnchorId = [:]
                     for row in rows {
                         if case .blockItem(let item) = row, let blockId = item.parentBlockId {
                             blockInsertAnchorId[blockId] = row.id
                         }
                     }
-                    
+
                     isDirty = false
                     return
                 }
-                
-                // ✅ DBが空＝“初回”の扱い
-                // 本番は seed を入れない（勝手に材料が入る事故を防ぐ）
+
+                // ✅ DBが空＝初回
                 rows = [.single(.init(parentRecipeId: parentRecipeId))]
                 reindexAll()
                 globalRailRowId = rows.last?.id
                 blockInsertAnchorId = [:]
                 isDirty = false
-                
-                #if DEBUG
+
+    #if DEBUG
                 print("🟦 first seed: one empty single row")
-                #endif
+    #endif
             }
         }
     }
+
 }
 
 // MARK: - 追加API（v15準拠：入力で増えない / 追加はドック起点）

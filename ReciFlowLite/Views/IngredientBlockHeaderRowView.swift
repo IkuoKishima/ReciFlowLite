@@ -1,43 +1,77 @@
 /// MARK: - IngredientBlockHeaderRowView.swift
-
+///
 import SwiftUI
 
 struct IngredientBlockHeaderRowView: View {
     @ObservedObject var store: IngredientEngineStore
     let block: IngredientBlock
-    let onInserted: (Int) -> Void   // ＋ボタンを押してからアイテムが追加されたようにする為、通知を受け取れる形にする
+    let onInserted: (Int) -> Void
+
+    private let plusXRatio: CGFloat = 0.60 //ボタンの距離
+
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { store.titleForBlock(block.id) },
+            set: { store.updateBlockTitle(block.id, $0) }
+        )
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-
-            // タイトル（今は表示だけ。次段で TextField 化してOK）
-            Text(block.title.isEmpty ? "調合" : block.title)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            // ✅ blockItem追加（ヘッダー起点）
-            Button {
-                // ✅ v15方式：block rail を使って「このブロックの＋」を安定させる
-                let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
-                // ✅ UI側の選択（selectedIndex）を追従させる
-                onInserted(inserted)
-
-                #if DEBUG
-                print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
-                #endif
-            } label: {
-                Image(systemName: "plus.circle")
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                TextField("調合", text: titleBinding)
                     .font(.footnote.weight(.semibold))
-                    .frame(width: 30, height: 30)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
+                    .foregroundStyle(.secondary)
+                    .textFieldStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+
+                Button {
+                    let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
+                    onInserted(inserted)
+#if DEBUG
+                    print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
+#endif
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 30, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(.ultraThinMaterial.opacity(0.25))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .position(x: geo.size.width * plusXRatio, y: geo.size.height / 2)
             }
-            .buttonStyle(.plain)
-
-            Spacer(minLength: 0) // ✅ 左寄せに固定する
+            .frame(height: 30)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-
+        .frame(height: 30)
+        .padding(.vertical, 2)
     }
 }
+
+#if DEBUG
+#Preview("BlockHeaderRow - Solo") {
+    let store = IngredientEngineStore(parentRecipeId: UUID())
+    let block = IngredientBlock(
+        id: UUID(),
+        parentRecipeId: store.parentRecipeId,
+        orderIndex: 0,
+        title: "調合preview"
+    )
+
+    // ✅ Bindingがstore.rowsを参照するので、ここが必須
+    store.rows = [.blockHeader(block)]
+
+    return IngredientBlockHeaderRowView(
+        store: store,
+        block: block,
+        onInserted: { _ in }
+    )
+    .padding()
+    .background(Color.black.opacity(0.03))
+    .overlay(Rectangle().stroke(.red.opacity(0.6), lineWidth: 1))
+}
+#endif

@@ -130,6 +130,7 @@ struct RecipeEditView: View {
                 },
                 onSwipeRight: { },
 
+                //UIKit配置パラメータ
                 railWidth: 38,
                 buttonSize: 30,
                 trailingPadding: 11,

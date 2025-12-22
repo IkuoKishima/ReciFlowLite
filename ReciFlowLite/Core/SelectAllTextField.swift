@@ -13,7 +13,13 @@ struct SelectAllTextField: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UITextField {
         let tf = UITextField()
-        tf.placeholder = placeholder
+        tf.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [
+                .foregroundColor: UIColor.secondaryLabel.withAlphaComponent(0.09)
+            ]
+        )
+
 //        tf.textAlignment = .right
         tf.delegate = context.coordinator
         tf.textAlignment = textAlignment
