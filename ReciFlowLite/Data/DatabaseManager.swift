@@ -1,3 +1,5 @@
+/// MARK: - DatabaseManager.swift
+
 import Foundation
 import SQLite3
 
@@ -47,32 +49,34 @@ final class DatabaseManager {
             title TEXT NOT NULL,
             memo TEXT NOT NULL,
             createdAt REAL NOT NULL,
-            updatedAt REAL NOT NULL
+            updatedAt REAL NOT NULL,
+            deletedAt REAL
         );
         """
-        
         execute(sql: sql)
+        // ingredientも起動時に用意しておく（呼び忘れ防止）
+        createIngredientTablesIfNeeded()
     }
     
     /// 将来のための「マイグレーションフック」
     private func migrateIfNeeded() {
-        let currentVersion = 1  // ← 今回の Lite 初期スキーマを「バージョン1」とする
+        let currentVersion = 2
 
         let defaults = UserDefaults.standard
-        let storedVersion = defaults.integer(forKey: "schemaVersion") // 未設定なら 0
+        let storedVersion = defaults.integer(forKey: "schemaVersion")
 
-        guard storedVersion < currentVersion else {
-            // すでに最新 or それ以上。今回は何もしない
-            return
+        guard storedVersion < currentVersion else { return }
+
+        if storedVersion < 2 {
+            // recipes に deletedAt を足す
+            execute(sql: "ALTER TABLE recipes ADD COLUMN deletedAt REAL;")
+            // ※ 既に列があるとエラーになるが、execute() はログ出して続行でOK（安全）
         }
-
-        // ここでバージョンごとの移行処理を書く
-        // 例）if storedVersion < 2 { ALTER TABLE ...; }
-        // 今回は v1 なので何もしない
 
         defaults.set(currentVersion, forKey: "schemaVersion")
         print("🔀 Schema migrated from \(storedVersion) to \(currentVersion)")
     }
+
     
     // MARK: - 公開メソッド (Store から呼ぶ用)
     
@@ -86,8 +90,10 @@ final class DatabaseManager {
                 let sql = """
                 SELECT id, title, memo, createdAt, updatedAt
                 FROM recipes
+                WHERE deletedAt IS NULL
                 ORDER BY createdAt DESC;
                 """
+
 
                 var statement: OpaquePointer?
                 if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
@@ -178,25 +184,87 @@ final class DatabaseManager {
         }
     }
     
-    func delete(recipeID: UUID) {
+    
+    //論理削除に変えるため、事故らないように名前を変える
+    func softDelete(recipeID: UUID) {
         guard let db = db else { return }
 
-        let sql = "DELETE FROM recipes WHERE id = ?;"
+        let sql = """
+        UPDATE recipes
+        SET deletedAt = ?, updatedAt = ?
+        WHERE id = ?;
+        """
+
+        let now = Date().timeIntervalSince1970
 
         queue.sync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, (recipeID.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_bind_double(statement, 1, now)
+                sqlite3_bind_double(statement, 2, now)
+                sqlite3_bind_text(statement, 3, recipeID.uuidString, -1, SQLITE_TRANSIENT)
+
                 if sqlite3_step(statement) == SQLITE_DONE {
-                    print("🗑 Deleted recipe: \(recipeID)")
+                    print("🗑 Soft deleted recipe: \(recipeID)")
                 } else {
                     let errorMsg = String(cString: sqlite3_errmsg(db))
-                    print("❌ delete error: \(errorMsg)")
+                    print("❌ softDelete error: \(errorMsg)")
                 }
             }
             sqlite3_finalize(statement)
         }
     }
+
+// こちらは物理削除の書き方
+//    func delete(recipeID: UUID) {
+//        guard let db = db else { return }
+//
+//        let sql = "DELETE FROM recipes WHERE id = ?;"
+//
+//        queue.sync {
+//            var statement: OpaquePointer?
+//            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+//                sqlite3_bind_text(statement, 1, (recipeID.uuidString as NSString).utf8String, -1, nil)
+//                if sqlite3_step(statement) == SQLITE_DONE {
+//                    print("🗑 Deleted recipe: \(recipeID)")
+//                } else {
+//                    let errorMsg = String(cString: sqlite3_errmsg(db))
+//                    print("❌ delete error: \(errorMsg)")
+//                }
+//            }
+//            sqlite3_finalize(statement)
+//        }
+//    }
+    
+    // Undo用に新たに追記
+    func restore(recipeID: UUID) {
+        guard let db = db else { return }
+
+        let sql = """
+        UPDATE recipes
+        SET deletedAt = NULL, updatedAt = ?
+        WHERE id = ?;
+        """
+
+        let now = Date().timeIntervalSince1970
+
+        queue.sync {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, now)
+                sqlite3_bind_text(statement, 2, recipeID.uuidString, -1, SQLITE_TRANSIENT)
+
+                if sqlite3_step(statement) == SQLITE_DONE {
+                    print("♻️ Restored recipe: \(recipeID)")
+                } else {
+                    let errorMsg = String(cString: sqlite3_errmsg(db))
+                    print("❌ restore error: \(errorMsg)")
+                }
+            }
+            sqlite3_finalize(statement)
+        }
+    }
+
     
     // MARK: - 内部ヘルパー
     

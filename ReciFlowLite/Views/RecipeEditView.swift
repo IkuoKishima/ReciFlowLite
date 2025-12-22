@@ -18,6 +18,16 @@ private static func _debugBodyTick() -> Bool {
 }
 #endif
 
+    @MainActor
+        private func dismissKeyboard() {
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil, from: nil, for: nil
+            )
+        }
+    
+    
+    
 
     var body: some View {
 #if DEBUG
@@ -75,40 +85,51 @@ let _ = Self._debugBodyTick()
         }
         
         //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
-        .overlay {
-            RightRailControls(
+        .overlay(alignment: .topTrailing) {
+            UIKitRightDock(
                 mode: .forward,
                 showsDelete: false,
-                showsAdd: false,              // ✅ 追加ボタンは非表示
-                
-                isDeleteMode: isDeleteMode,
-                onToggleDelete: { isDeleteMode.toggle() },
-                // 使わないので空でOK（呼ばれない）
+                showsAdd: false,
+                showsKeyboardDismiss: true,
+                isDeleteMode: false,
+                onToggleDelete: { },
+
                 onAddSingle: { },
                 onAddBlock: { },
-                
-                onPrimary: {path.append(.engine(recipeId))},    // > でも進める
-                onHome: {path = []},                                // 🔳 でリストへ
-                onSwipeLeft: {path.append(.engine(recipeId))},  // 右→左で進む
-                onSwipeRight: {
-                    // Editで右スワイプは何もしない（誤爆防止）
-                }
+
+                onPrimary: {
+                    dismissKeyboard()
+                    path.append(.engine(recipeId))
+                },
+                onHome: {
+                    dismissKeyboard()
+                    path = []
+                },
+
+                onSwipeLeft: {
+                    dismissKeyboard()
+                    path.append(.engine(recipeId))
+                },
+                onSwipeRight: { },
+
+                // ✅ ここから「UIKit配置パラメータ」が先
+                railWidth: 38,
+                buttonSize: 30,
+                trailingPadding: 11,
+                verticalSpacing: 16,
+                centerYRatio: 0.38,
+                minBottomPadding: 6,
+
+                // ✅ showsPrimary / showsHome は最後
+                showsPrimary: true,
+                showsHome: true
             )
+            .frame(width: 80)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
+
         
 
     }
 }
 
-// MARK: - プレビュー
-
-////下の書き方は使えるが、データベースと連携で初期レコードゼロならXcodeエラーも出た
-//#Preview {
-//    let store = RecipeStore.preview
-//    return NavigationStack {
-//        RecipeEditView(
-//            store: store,
-//            recipeID: store.recipes[0].id //レシピid[0]で必ずあるので表示できる
-//        )
-//    }
-//}

@@ -23,16 +23,21 @@ struct ContentView: View {
                     //✅ここでエンジンビューを生成している
                     case .engine(let id):
                         IngredientEngineView(
-                            engineStore: store.engineStore(for: id),
-                            recipeStore: store,
-                            recipeId: id,
-                            path: $path
+                            store: store.engineStore(for: id),
+                            onPrimary: {
+                                print("<<< back tapped (primary)")
+                                guard !path.isEmpty else { return }
+                                path.removeLast()
+                            },
+                            onHome: { path = [] },
+                            onSwipeLeft: { },
+                            onSwipeRight: {
+                                print("<<< back swiped (rail)")
+                                guard !path.isEmpty else { return }
+                                path.removeLast()
+                            },
+                            onDelete: { }
                         )
-                        
-                        
-                        
-                        
-
                     }
                 }
         }

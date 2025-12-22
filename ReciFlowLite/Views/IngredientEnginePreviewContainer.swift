@@ -8,10 +8,7 @@ private struct IngredientEnginePreviewContainer: View {
 
     var body: some View {
         IngredientEngineView(
-            engineStore: .previewStore(),
-            recipeStore: recipeStore,
-            recipeId: recipeId,
-            path: $path
+            store: .previewStore()
         )
     }
 }

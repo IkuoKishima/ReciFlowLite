@@ -20,6 +20,8 @@ final class IngredientEngineStore: ObservableObject {
     private var saveWorkItem: DispatchWorkItem?
     private let debounceSeconds: TimeInterval = 0.6
     
+    @Published var pendingFocusItemId: UUID? = nil //追加アイテムに即フォーカスさせるためidを持たせる
+    
 
     
     // MARK: - 初期化処理
@@ -175,6 +177,7 @@ final class IngredientEngineStore: ObservableObject {
         }
     }
 }
+
 // MARK: - 追加API（v15準拠：入力で増えない / 追加はドック起点）
 
 extension IngredientEngineStore {
@@ -375,15 +378,18 @@ extension IngredientEngineStore {
         let insertAt = insertionIndex(after: index)
 
         let newItem = IngredientItem(
+            id: UUID(),
             parentRecipeId: parentRecipeId,
             parentBlockId: nil,
             orderIndex: 0,
-            name: "S",
+            name: "",
             amount: "",
             unit: ""
         )
 
         rows.insert(.single(newItem), at: insertAt)
+        pendingFocusItemId = newItem.id
+        
         reindexAll()
 
         #if DEBUG
@@ -435,6 +441,7 @@ extension IngredientEngineStore {
         let insertAt = insertionIndex(after: baseIndex)
 
         let newItem = IngredientItem(
+            id: UUID(),
             parentRecipeId: parentRecipeId,
             parentBlockId: blockId,
             orderIndex: 0,
@@ -444,6 +451,7 @@ extension IngredientEngineStore {
         )
 
         rows.insert(.blockItem(newItem), at: insertAt)
+        pendingFocusItemId = newItem.id
         reindexAll()
 
         #if DEBUG

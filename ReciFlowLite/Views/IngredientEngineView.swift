@@ -5,29 +5,40 @@ import SwiftUI
 struct IngredientEngineView: View {
     @Environment(\.scenePhase) private var scenePhase
     let DEBUG = true ////🟡エクステンションでデバッグ背景を有効にする
-    @ObservedObject var engineStore: IngredientEngineStore // rows用（本体）
-    @ObservedObject var recipeStore: RecipeStore          // レシピメタ用（必要なら）
-    //ルーター配置予定
+    
+    @ObservedObject var store: IngredientEngineStore
     @State private var isDeleteMode = false // 削除モード
-    // 並替モード配置予定
     @State private var selectedIndex: Int? = nil //🚧ここを止める予定
 
+    
+    // 🆕 外から注入される“アプリ操作”
+    var onPrimary: () -> Void = {}
+    var onHome: () -> Void = {}
+    var onSwipeLeft: () -> Void = {}
+    var onSwipeRight: () -> Void = {}
+    var onDelete: () -> Void = {}   // 🆕 左の削除領域用（必要なら）
 
-    let recipeId: UUID
-    @Binding var path: [Route]
-
-
-
-
+    // MARK: - キーボード閉じ関数
+    private func dismissKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
+    }
 
 
     // MARK: - ──── 行の高さ・行間はここの集約　 ─────　//
     
     private let amountWidth: CGFloat = 42 //分量フィールド幅
     private let unitWidth: CGFloat = 66 //単位フィールド幅
+    private let leftGutterWidth: CGFloat = 20 //左ガターの幅
 
     private let rowHeightSingle: CGFloat      = 36  // 単体＆blockItem
-    private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
+    private let rowHeightBlockHeader: CGFloat = 36 //見出しだけ少し高く
     
     // ブロックアイテム行の高さを補正
     private func rowHeight(for row: IngredientRow) -> CGFloat {
@@ -36,7 +47,7 @@ struct IngredientEngineView: View {
         default:           return rowHeightSingle
         }
     }
-//    private let rowVPadding: CGFloat = 0 //⚠️文字内余白
+
     
 
 
@@ -58,10 +69,10 @@ struct IngredientEngineView: View {
     // この index の行がブロック中ならブラケット位置を返す
     
     private func bracketRoleForRow(at index: Int) -> BracketRole {
-        guard engineStore.rows.indices.contains(index) else { return .none }
+        guard store.rows.indices.contains(index) else { return .none }
         
         // v5 では「カッコ対象」はブロック内アイテム (.blockItem) だけ
-        guard case .blockItem(let item) = engineStore.rows[index],
+        guard case .blockItem(let item) = store.rows[index],
               let blockId = item.parentBlockId else {
             return .none
         }
@@ -70,8 +81,8 @@ struct IngredientEngineView: View {
         let prevIsSameBlock: Bool = {
             let prev = index - 1
             guard prev >= 0,
-                  engineStore.rows.indices.contains(prev),
-                  case .blockItem(let prevItem) = engineStore.rows[prev]
+                  store.rows.indices.contains(prev),
+                  case .blockItem(let prevItem) = store.rows[prev]
             else { return false }
             return prevItem.parentBlockId == blockId
         }()
@@ -79,8 +90,8 @@ struct IngredientEngineView: View {
         // 直後が同じ blockId の .blockItem か？
         let nextIsSameBlock: Bool = {
             let next = index + 1
-            guard engineStore.rows.indices.contains(next),
-                  case .blockItem(let nextItem) = engineStore.rows[next]
+            guard store.rows.indices.contains(next),
+                  case .blockItem(let nextItem) = store.rows[next]
             else { return false }
             return nextItem.parentBlockId == blockId
         }()
@@ -162,7 +173,7 @@ struct IngredientEngineView: View {
     ) -> Binding<String> {
         Binding(
             get: {
-                guard let idx = engineStore.rows.firstIndex(where: { row in
+                guard let idx = store.rows.firstIndex(where: { row in
                     switch row {
                     case .single(let it): return it.id == itemId
                     case .blockItem(let it): return it.id == itemId
@@ -170,14 +181,14 @@ struct IngredientEngineView: View {
                     }
                 }) else { return "" }
 
-                switch engineStore.rows[idx] {
+                switch store.rows[idx] {
                 case .single(let it): return get(it)
                 case .blockItem(let it): return get(it)
                 default: return ""
                 }
             },
             set: { newValue in
-                guard let idx = engineStore.rows.firstIndex(where: { row in
+                guard let idx = store.rows.firstIndex(where: { row in
                     switch row {
                     case .single(let it): return it.id == itemId
                     case .blockItem(let it): return it.id == itemId
@@ -187,21 +198,21 @@ struct IngredientEngineView: View {
 
                 var didUpdate = false
 
-                switch engineStore.rows[idx] {
+                switch store.rows[idx] {
                 case .single(var it):
                     let old = get(it)
                     if old == newValue { return }   // ✅ 同値ならスルー
                     set(&it, newValue)
-                    engineStore.rows[idx] = .single(it)
-                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
+                    store.rows[idx] = .single(it)
+                    store.markDirtyAndScheduleSave(reason: "text edit")
                     didUpdate = true
 
                 case .blockItem(var it):
                     let old = get(it)
                     if old == newValue { return }   // ✅ 同値ならスルー
                     set(&it, newValue)
-                    engineStore.rows[idx] = .blockItem(it)
-                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
+                    store.rows[idx] = .blockItem(it)
+                    store.markDirtyAndScheduleSave(reason: "text edit")
                     didUpdate = true
 
                 default:
@@ -209,7 +220,7 @@ struct IngredientEngineView: View {
                 }
 
                 if didUpdate {
-                    engineStore.markDirtyAndScheduleSave(reason: "text edit")
+                    store.markDirtyAndScheduleSave(reason: "text edit")
                 }
             }
         )
@@ -220,17 +231,17 @@ struct IngredientEngineView: View {
     
     var body: some View {
         ZStack(alignment: .topLeading) {
+            
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
 
 
                     //EngineStoreを参照して表示するから、engineStore.rows)
-                    let indexedRows = Array(engineStore.rows.enumerated())
+                    let indexedRows = Array(store.rows.enumerated())
 
-                    ForEach(indexedRows, id: \.element.id) { index, row in
+                    ForEach(Array(store.rows.enumerated()), id: \.element.id) { index, row in
                         rowWithControls(for: row, at: index)
-                        
                         //SwiftUIの行間を以下で制御する
                         .padding(.horizontal, 8) //⚠️画面端からの距離
                         .frame(height: rowHeight(for: row))//ヘッダ高連携
@@ -242,75 +253,88 @@ struct IngredientEngineView: View {
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
 
-                .padding(.trailing, 15) // ⚠️右干渉回避
+                .padding(.trailing, 30) // ⚠️右干渉回避
 //                .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
                 
                 .onAppear {
-                    engineStore.loadIfNeeded() // 🔀本番用画面に入ったら読み込み
+                    store.loadIfNeeded() // 🔀本番用画面に入ったら読み込み
                     #if DEBUG //🔀loadIfNeeded()を使わない　DB読み込みテスト
 //                    engineStore.load()
                     #endif
                 }
                 
                 .onDisappear {
-                    engineStore.flushSave(reason: "onDisappear")// ✅ 予約中があっても必ず確定保存
+                    store.flushSave(reason: "onDisappear")// ✅ 予約中があっても必ず確定保存
                 #if DEBUG
-                    print("✅ saved & cleared \(engineStore.rows.count) rows")
+                    print("✅ saved & cleared \(store.rows.count) rows")
                 #endif
                 }
                 
                 .onChange(of: scenePhase) { phase in
                     if phase == .background || phase == .inactive {
                         // ✅ アプリが裏に回る瞬間に確定保存
-                        engineStore.flushSave(reason: "scenePhase=\(phase)")
+                        store.flushSave(reason: "scenePhase=\(phase)")
+                        
+
                     }
                 }
-
-
-
+                
+                
+                
             }
 //            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
         }
-        .navigationBarBackButtonHidden(true)
-        .padding(0) // “紙面”を削らない。余白はScroll内で管理
-        
-        
-        
-        
-        
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
-    
-        //初期化順に配置
-        //⚠️ここで仮ドックボタンを呼んでいるが、順序はRightRailControlsで書いた順
-        .overlay {
-            RightRailControls(
+        .overlay(alignment: .topTrailing) {
+            UIKitRightDock(
                 mode: .back,
                 showsDelete: true,
+                showsAdd: true,
+                showsKeyboardDismiss: true,
                 isDeleteMode: isDeleteMode,
-                onToggleDelete: { isDeleteMode.toggle() },
-                
-                
-                
+
+                onToggleDelete: {
+                    // ここは今まで通りでOK（ただし “閉じる→切替” の順を統一すると安定）
+                    dismissKeyboard()
+                    isDeleteMode.toggle()
+                },
+
                 onAddSingle: {
-                    let inserted = engineStore.addSingleAtGlobalRail()
+                    let inserted = store.addSingle(after: selectedIndex)
                     selectedIndex = inserted
                 },
-                
                 onAddBlock: {
-                    let inserted = engineStore.addBlockHeaderAtGlobalRail()
+                    let inserted = store.addBlock(after: selectedIndex)
                     selectedIndex = inserted
                 },
 
-                
-                // onPrimary を「＋」に割り当て（最短で追加が動く）
-                onPrimary: { if !path.isEmpty { path.removeLast() } },
+                onPrimary: {
+                    // UIKit側で閉じるボタンもあるが、遷移前にも閉じると事故が減る
+                    dismissKeyboard()
+                    onPrimary()
+                },
+                onHome: {
+                    dismissKeyboard()
+                    onHome()
+                },
 
-                onHome: { path = [] },
-                onSwipeLeft: { },
-                onSwipeRight: { if !path.isEmpty { path.removeLast() } }
+                onSwipeLeft: {
+                    dismissKeyboard()
+                    onSwipeLeft()
+                },
+                onSwipeRight: {
+                    dismissKeyboard()
+                    onSwipeRight()
+                },
+                centerYRatio: 0.28, minBottomPadding: 0
             )
+            // 右端に“常駐する領域”を確保
+            .frame(width: 80)
+            .ignoresSafeArea(.keyboard, edges: .bottom)//SafeArea管理
         }
+        .navigationBarBackButtonHidden(true)
+        .padding(0) // “紙面”を削らない。余白はScroll内で管理
         .navigationTitle("材料")
     }
     //✅ここはボディの外
@@ -319,56 +343,48 @@ struct IngredientEngineView: View {
     
     // MARK: - ──── 📝🌟　削除・並び替えをする　「デザインではなく構造」　🌟📝 ──── //
         
+
     @ViewBuilder
     private func controlColumn(for row: IngredientRow, at index: Int) -> some View {
-       
-        Image(systemName: "minus.circle.fill")  //　削除時に左に出すボタン
-            .font(.body.weight(.semibold))
-            .foregroundStyle(.red)
-            .opacity(isDeleteMode ? 1 : 0)
-            .frame(width: 20)
-            .contentShape(Rectangle())
-            .allowsHitTesting(isDeleteMode)
-        
-        
-            .onTapGesture {
-                guard isDeleteMode else {// ✅ 削除モードの時だけ反応
-                // =========================
-                // 🟩 通常モード（v15レール更新）
-                // =========================
-                    selectedIndex = index
-                    // ✅ 追加・入力の基準になる「レール」を更新
-                    engineStore.userDidSelectRow(row.id)
-                    return// ← ここで必ず終了（レール更新しない、するとレールがズレる）
-                }
-
-                // =========================
-                // 🟥 削除モード
-                // =========================
-                selectedIndex = index// ⚠️ 削除は index 基準が正解
-                engineStore.deleteRow(at: index)
-
-                // 削除後に index が範囲外になるのを防ぐ
-                if engineStore.rows.isEmpty {
-                    selectedIndex = nil
-                    engineStore.globalRailRowId = nil
-                } else {
-                    let next = min(index, engineStore.rows.count - 1)
-                    selectedIndex = next
-                    engineStore.globalRailRowId = engineStore.rows[next].id
-                }
+        ZStack {
+            Image(systemName: "minus.circle.fill")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.red)
+                .opacity(isDeleteMode ? 1 : 0)
+        }
+        .frame(width: leftGutterWidth, height: 36, alignment: .center)
+        .contentShape(Rectangle())
+        .allowsHitTesting(isDeleteMode)
+        .onTapGesture {
+            guard isDeleteMode else {
+                selectedIndex = index
+                store.userDidSelectRow(row.id)
+                return
             }
 
-//            .debugBG(DEBUG, .red.opacity(0.12), "D")
+            selectedIndex = index
+            store.deleteRow(at: index)
+
+            if store.rows.isEmpty {
+                selectedIndex = nil
+                store.globalRailRowId = nil
+            } else {
+                let next = min(index, store.rows.count - 1)
+                selectedIndex = next
+                store.globalRailRowId = store.rows[next].id
+            }
+        }
+//        .debugBG(DEBUG, .red.opacity(0.12), "削")
     }
 
+    
     // MARK: -  ───── 削除と並び替えをひとかたまりに ───── //　ForEachでこれを呼ぶ
     // ここが唯一の横レイアウトにしています
     @ViewBuilder
     private func rowWithControls(for row: IngredientRow, at index: Int) -> some View {
-        HStack(spacing: 6) { //⚠️削除ボタンと文字の距離
-            controlColumn(for: row, at: index)
-            rowView(for: row, at: index)
+        HStack(spacing: 8) { //⚠️削除ボタンと文字の距離
+            controlColumn(for: row, at: index)//左ガター
+            rowView(for: row, at: index)       //本体
         }
         
         
@@ -377,7 +393,7 @@ struct IngredientEngineView: View {
             Rectangle()
                 .frame(height: 0.8) //線の太さ
                 .foregroundColor(Color(.systemGray4).opacity(0.75)) //線の濃さ
-                .padding(.leading, 25),// 左端からの距離
+                .padding(.leading, leftGutterWidth),
             alignment: .bottom
         )
         .frame(minHeight: rowHeightSingle) //✅ 高さはここで統一
@@ -387,14 +403,14 @@ struct IngredientEngineView: View {
             selectedIndex = index
 
             // ✅ global rail 更新
-            engineStore.userDidSelectRow(row.id)
+            store.userDidSelectRow(row.id)
 
             // ✅ block rail 更新（blockHeader / blockItem 両対応）
             if case .blockHeader(let block) = row {
-                engineStore.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
+                store.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
             }
             if case .blockItem(let item) = row, let blockId = item.parentBlockId {
-                engineStore.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
+                store.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
             }
 
             #if DEBUG
@@ -408,14 +424,14 @@ struct IngredientEngineView: View {
     @ViewBuilder
     private func rowView(for row: IngredientRow, at index: Int) -> some View {
         contentForRow(row, at: index)
-        
     }
     
     //ここで表示するレコードの処理を配置する
     //───── 行としての本体 ───── ✅冒頭定数設定で、amount/unit領域の調整は一元化
     @ViewBuilder //これらは、弁当箱屋さんのように入れ物専門で作る機能、どこに何が幾つはいるかを生成している
     private func contentForRow(_ row: IngredientRow, at index: Int) -> some View {
-            switch row {
+        
+        switch row {
                 
             case .single(let item):
                 HStack(spacing: 8) { //⚠️内側寄せ
@@ -425,8 +441,12 @@ struct IngredientEngineView: View {
                             get: { $0.name },
                             set: { $0.name = $1 }
                         ),
-                        placeholder: "材料"
-                    )
+                        placeholder: "材料",
+                            shouldBecomeFirstResponder: store.pendingFocusItemId == item.id,
+                            onDidBecomeFirstResponder: {
+                                store.pendingFocusItemId = nil
+                            }
+                        )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 36)
                     
@@ -465,7 +485,7 @@ struct IngredientEngineView: View {
 
                     // 🔹 Header 本体
                     IngredientBlockHeaderRowView(
-                        store: engineStore,
+                        store: store,
                         block: block
                     ) { inserted in
                         selectedIndex = inserted
@@ -544,20 +564,14 @@ extension RecipeStore {
 }
 #endif
 
+
+
 #if DEBUG
-// MARK: - Preview Wrapper
 private struct IngredientEnginePreviewContainer: View {
-    @StateObject private var recipeStore = RecipeStore.previewStore()
-    @State private var path: [Route] = []
-    private let recipeId = UUID()
+    @StateObject private var store = IngredientEngineStore.previewStore()
 
     var body: some View {
-        IngredientEngineView(
-            engineStore: .previewStore(),
-            recipeStore: recipeStore,
-            recipeId: recipeId,
-            path: $path
-        )
+        IngredientEngineView(store: store)
     }
 }
 

@@ -5,6 +5,8 @@ import UIKit
 struct SelectAllTextField: UIViewRepresentable {
     @Binding var text: String
     var placeholder: String = ""
+    var shouldBecomeFirstResponder: Bool = false
+    var onDidBecomeFirstResponder: (() -> Void)? = nil
     var textAlignment: NSTextAlignment = .left
     var keyboardType: UIKeyboardType = .default
     var onCommit: (() -> Void)? = nil
@@ -22,8 +24,19 @@ struct SelectAllTextField: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text { uiView.text = text }
+        if uiView.text != text {
+            uiView.text = text
+        }
+
+        if shouldBecomeFirstResponder && !uiView.isFirstResponder {
+            DispatchQueue.main.async {
+                uiView.becomeFirstResponder()
+                uiView.selectAll(nil)
+                onDidBecomeFirstResponder?()
+            }
+        }
     }
+
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 

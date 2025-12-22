@@ -9,13 +9,13 @@ struct RecipeListView: View {
             ForEach(store.recipes) { recipe in
                 Button {
 #if DEBUG
-   let t0 = CFAbsoluteTimeGetCurrent()
-   print("[DEBUG] tap row start", recipe.id)
-   #endif
+                    let t0 = CFAbsoluteTimeGetCurrent()
+                    print("[DEBUG] tap row start", recipe.id)
+#endif
                     path.append(.edit(recipe.id))
 #if DEBUG
-   print("[DEBUG] tap row end", CFAbsoluteTimeGetCurrent() - t0)
-   #endif
+                    print("[DEBUG] tap row end", CFAbsoluteTimeGetCurrent() - t0)
+#endif
                 } label: {
                     HStack(spacing: 0) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -26,23 +26,71 @@ struct RecipeListView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Spacer(minLength: 0) // ← これが「右側まで当たり判定」を作る決定打
+                        Spacer(minLength: 0)
                     }
                     .padding(.vertical, 16)
-                    .contentShape(Rectangle()) // ← “行全体”を当たり判定に
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)) // ← ここに置く
+                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+            }
+            // ✅ 削除
+            .onDelete { offsets in
+                Task { @MainActor in
+                    store.requestDelete(at: offsets)
+                }
+            }
+        }
+        // 👇 List 自体を無効化
+        .disabled(store.isLoading)
+
+        // ✅ 起動ロード中オーバーレイ（List全体を覆う）
+        .overlay {
+            if store.isLoading {
+                ZStack {
+                    Color.black.opacity(0.08)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(true) // うっかり指を触れた感も消しておく
+                    ProgressView("Loading…")
+                        .padding(16)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .transition(.opacity)
             }
         }
 
+        // ✅ Undoトースト（下部）
+        .overlay(alignment: .bottom) {
+            if store.pendingUndo != nil {
+                HStack {
+                    Text("Deleted")
+                        .font(.callout)
+
+                    Spacer()
+
+                    Button("Undo") {
+                        Task { @MainActor in
+                            store.undoDelete()
+                        }
+                    }
+                    .font(.callout.weight(.semibold))
+                }
+                .padding(12)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+
+        // ✅ 追加ボタン
         .overlay(alignment: .bottomTrailing) {
             Button {
                 Task {
                     let newId = await store.addNewRecipeAndPersist()
-                    await MainActor.run {
-                        path.append(.edit(newId))
-                    }
+                    await MainActor.run { path.append(.edit(newId)) }
                 }
             } label: {
                 Image(systemName: "plus")
@@ -51,9 +99,14 @@ struct RecipeListView: View {
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
             }
+            .disabled(store.isLoading)
+            .opacity(store.isLoading ? 0.3 : 1.0)
             .padding(.trailing, 18)
-            .padding(.bottom, 18)
+            // ✅ Undoが出ている間だけボタンを上へ逃がす
+            .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
+            .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
+
         }
+
     }
 }
-

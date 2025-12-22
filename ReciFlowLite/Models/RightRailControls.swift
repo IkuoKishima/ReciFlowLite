@@ -9,11 +9,11 @@ struct RightRailControls: View {
         case forward   // > で進む（Edit側）
         case back      // < で戻る（Engine側）
     }
+    
 
     let mode: Mode
 
     // ボタンアクション
-    
     var showsDelete: Bool = false// ✅ Deleteは「使う画面だけ」ON
     var showsAdd: Bool = true
 
@@ -22,10 +22,13 @@ struct RightRailControls: View {
     let onToggleDelete: () -> Void // 🗑️
     
     // ✅ 追加
+
     let onAddSingle: () -> Void   // ＋
     let onAddBlock: () -> Void    // 2x2
     let onPrimary: () -> Void   // > or <
     let onHome: () -> Void      // 🔳
+    var showsKeyboardDismiss: Bool = false  //閉じる
+    let onKeyboardDismiss: () -> Void        //閉じる
 
     // レールスワイプ
     let onSwipeLeft: () -> Void
@@ -59,6 +62,9 @@ struct RightRailControls: View {
 
                 // ───────── 右端55〜60%：縦2段ボタン ─────────
                 VStack(spacing: 16) {
+                    
+
+
                     
                     // 🗑 削除モード切替
                     if showsDelete {
@@ -110,10 +116,26 @@ struct RightRailControls: View {
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
                     }
+                    
+                    
+                    // ⌨️閉じる
+                    if showsKeyboardDismiss {
+                        Button(action: onKeyboardDismiss) {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    
+                    
                 }
                 .position(
                     x: geo.size.width - 18,
-                    y: geo.size.height * 0.58   // ボタンの配置を決める上から58%（=下から42%）
+                    y: geo.size.height * 0.38   // ボタンの配置を決める上から38%（=下から62%）
                 )
             }
         }

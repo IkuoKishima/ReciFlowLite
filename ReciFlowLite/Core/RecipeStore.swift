@@ -10,8 +10,39 @@ final class RecipeStore: ObservableObject {
     // MARK: - Published State
     @Published var recipes: [Recipe] = []
     @Published var isLoading: Bool = false
+    @Published var pendingUndo: Recipe? = nil //1件Undoのために追記
+
+    
+    //削除要求（IndexSet）を受ける関数
+    @MainActor
+    func requestDelete(at offsets: IndexSet) {
+        guard let index = offsets.first, recipes.indices.contains(index) else { return }
+        let target = recipes[index]
+
+        // 1) まずUI上から消す（体感を良くする）
+        recipes.remove(at: index)
+
+        // 2) 直前削除として保持（1件だけ）
+        pendingUndo = target
+
+        // 3) DBは論理削除
+        DatabaseManager.shared.softDelete(recipeID: target.id)
+    }
+    
+    @MainActor
+    func undoDelete() {
+        guard let r = pendingUndo else { return }
+        pendingUndo = nil
+
+        // 1) DB復元
+        DatabaseManager.shared.restore(recipeID: r.id)
+
+        // 2) UIに戻す（先頭に戻すでOK / index復元は後で良い）
+        recipes.insert(r, at: 0)
+    }
     
     
+
     
     // MARK: - Caches
     private var engineStores: [UUID: IngredientEngineStore] = [:]
