@@ -7,76 +7,93 @@ struct RecipeEditView: View {
 
     @State private var title: String = ""
     @State private var memo: String = ""
-    
-    
-    @State private var isDeleteMode = false
-    
+
 #if DEBUG
-private static func _debugBodyTick() -> Bool {
-    print("[DEBUG] Edit body tick")
-    return true
-}
+    private static func _debugBodyTick() -> Bool {
+        print("[DEBUG] Edit body tick")
+        return true
+    }
 #endif
 
     @MainActor
-        private func dismissKeyboard() {
-            UIApplication.shared.sendAction(
-                #selector(UIResponder.resignFirstResponder),
-                to: nil, from: nil, for: nil
-            )
-        }
-    
-    
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
+    }
     
 
     var body: some View {
 #if DEBUG
-let _ = Self._debugBodyTick()
+        let _ = Self._debugBodyTick()
 #endif
-
         let recipe = store.recipe(for: recipeId)
 
-        VStack(alignment: .leading, spacing: 12) {
+        ZStack {
+            // ✅ うっすら“紙”背景（真っ白回避）
+            PaperBackground()
+                .ignoresSafeArea()
 
-            TextField("Title", text: $title)
-                .font(.title2.weight(.semibold))
-                .textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 12) {
 
-            //RecipeMetaStripで日付表示を共通化し、コードを簡素化する
-            if let r = recipe {
-                RecipeMetaStrip(createdAt: r.createdAt, updatedAt: r.updatedAt)
-            }
-            
+                // ✅ タイトル：四角枠を廃止してノート見出しっぽく
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Title", text: $title)
+                        .font(.title2.weight(.semibold))
+                        .textFieldStyle(.plain)
+                        .padding(.vertical, 6)
 
-            TextEditor(text: $memo)
-                .frame(minHeight: 140)
-                .overlay(alignment: .topLeading) {
+                    // 下線（ノート感）
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundStyle(.secondary.opacity(0.35))
+                }
+                .padding(.horizontal, 2)
+
+                if let r = recipe {
+                    RecipeMetaStrip(createdAt: r.createdAt, updatedAt: r.updatedAt)
+                }
+
+                // ✅ 作り方：紙カード + 罫線で“白いだけ”を消す
+                ZStack(alignment: .topLeading) {
+                    LinedPaperBackground(lineSpacing: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                    TextEditor(text: $memo)
+                        .font(.body)
+                        .scrollContentBackground(.hidden) // TextEditor の白背景を消す
+                        .padding(12)
+
                     if memo.isEmpty {
                         Text("作りかた")
                             .foregroundStyle(.secondary)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
+                            .padding(.top, 20)
+                            .padding(.leading, 18)
                     }
                 }
-                .padding(.horizontal, -4)
+                .frame(minHeight: 220)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(.secondary.opacity(0.18), lineWidth: 1)
+                }
 
-            Spacer()
+                Spacer()
+            }
+            .padding(16)
         }
-        .navigationBarBackButtonHidden(true) // 🍎標準左上の戻るが自動生成されている時、消してねと頼む記述
-
-        .padding(16)
+        .navigationBarBackButtonHidden(true)
         .navigationTitle("レシピ名")
+
         .onAppear {
-          #if DEBUG
-          print("[DEBUG] Edit onAppear start")
-          #endif
-            // 初期表示に反映
+#if DEBUG
+            print("[DEBUG] Edit onAppear start")
+#endif
             if let r = recipe {
                 title = r.title
                 memo  = r.memo
             }
         }
-        // 変更を即反映（Liteなのでシンプルに）
         .onChange(of: title) { _, newValue in
             store.updateRecipeMeta(recipeId: recipeId, title: newValue, memo: memo)
         }
@@ -84,7 +101,8 @@ let _ = Self._debugBodyTick()
             store.updateRecipeMeta(recipeId: recipeId, title: title, memo: newValue)
         }
         
-        //🟨ここで共通のページめくり関数と繋げ行き来の速度を速くする
+
+        // ✅ 右ドックはそのまま
         .overlay(alignment: .topTrailing) {
             UIKitRightDock(
                 mode: .forward,
@@ -112,7 +130,6 @@ let _ = Self._debugBodyTick()
                 },
                 onSwipeRight: { },
 
-                // ✅ ここから「UIKit配置パラメータ」が先
                 railWidth: 38,
                 buttonSize: 30,
                 trailingPadding: 11,
@@ -120,16 +137,67 @@ let _ = Self._debugBodyTick()
                 centerYRatio: 0.38,
                 minBottomPadding: 6,
 
-                // ✅ showsPrimary / showsHome は最後
                 showsPrimary: true,
                 showsHome: true
             )
             .frame(width: 80)
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-
-        
-
     }
-}
+  
+    
+    // MARK: - 書式デザイン
+    private struct PaperBackground: View {
+        var body: some View {
+            LinearGradient(
+                colors: [
+                    Color(.systemBackground),
+                    Color(.systemBackground).opacity(0.92),
+                    Color(.secondarySystemBackground).opacity(0.55)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .overlay {
+                // うっすらビネット（端が少し締まる）
+                RadialGradient(
+                    colors: [
+                        .clear,
+                        Color.black.opacity(0.06)
+                    ],
+                    center: .center,
+                    startRadius: 80,
+                    endRadius: 520
+                )
+                .blendMode(.multiply)
+            }
+        }
+    }
+    
+    
+    private struct LinedPaperBackground: View {
+        var lineSpacing: CGFloat = 26
 
+        var body: some View {
+            GeometryReader { geo in
+                ZStack {
+                    // 紙面
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(.ultraThinMaterial.opacity(0.65))
+
+                    // 罫線
+                    Path { path in
+                        var y: CGFloat = 18
+                        while y < geo.size.height {
+                            path.move(to: CGPoint(x: 12, y: y))
+                            path.addLine(to: CGPoint(x: geo.size.width - 12, y: y))
+                            y += lineSpacing
+                        }
+                    }
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                }
+            }
+        }
+    }
+
+}

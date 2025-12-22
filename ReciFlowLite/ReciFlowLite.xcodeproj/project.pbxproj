@@ -35,6 +35,7 @@
 		90379D402EF7C43000F72F6B /* SelectAllTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D3F2EF7C43000F72F6B /* SelectAllTextField.swift */; };
 		90379D422EF8F46200F72F6B /* Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D412EF8F46200F72F6B /* Keyboard.swift */; };
 		90379D442EF8FC9800F72F6B /* UIKitRightDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D432EF8FC9800F72F6B /* UIKitRightDock.swift */; };
+		90379D462EF974BB00F72F6B /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379D452EF974BB00F72F6B /* LoadingView.swift */; };
 		90BB743A2EEEB29D00F8F329 /* IngredientEngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */; };
 		90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB743B2EEEB31100F8F329 /* IngredientRow.swift */; };
 		90BB74412EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */; };
@@ -90,6 +91,7 @@
 		90379D3F2EF7C43000F72F6B /* SelectAllTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectAllTextField.swift; sourceTree = "<group>"; };
 		90379D412EF8F46200F72F6B /* Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keyboard.swift; sourceTree = "<group>"; };
 		90379D432EF8FC9800F72F6B /* UIKitRightDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitRightDock.swift; sourceTree = "<group>"; };
+		90379D452EF974BB00F72F6B /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		90BB74392EEEB29D00F8F329 /* IngredientEngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientEngineStore.swift; sourceTree = "<group>"; };
 		90BB743B2EEEB31100F8F329 /* IngredientRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRow.swift; sourceTree = "<group>"; };
 		90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientBlockHeaderRowView.swift; sourceTree = "<group>"; };
@@ -216,6 +218,7 @@
 		901486C42EEBB4AB00B740F4 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				90379D452EF974BB00F72F6B /* LoadingView.swift */,
 				901486D32EEBB61600B740F4 /* IngredientEngineView.swift */,
 				90379D0A2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift */,
 				90BB74402EEF947A00F8F329 /* IngredientBlockHeaderRowView.swift */,
@@ -410,6 +413,7 @@
 				90BB743C2EEEB31100F8F329 /* IngredientRow.swift in Sources */,
 				90379D0B2EF3B97300F72F6B /* IngredientEnginePreviewContainer.swift in Sources */,
 				901487262EEC375F00B740F4 /* DatabaseManager.swift in Sources */,
+				90379D462EF974BB00F72F6B /* LoadingView.swift in Sources */,
 				901486D22EEBB60200B740F4 /* ProcessEditView.swift in Sources */,
 				901486D62EEBB64200B740F4 /* RecipeEditView.swift in Sources */,
 				9014872A2EEDB1EA00B740F4 /* RightRailControls.swift in Sources */,
