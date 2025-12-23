@@ -19,32 +19,50 @@ struct IngredientBlockHeaderRowView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                TextField("GroupTitle", text: titleBinding)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textFieldStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
+
+                VStack {
+                    Spacer() // ← 上にスペースを押し込む
+
+                    TextField("GroupTitle", text: titleBinding)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textFieldStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .baselineOffset(-1.5) // 下寄せの「沈み量」微調整はこれが最適
 
                 Button {
                     let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
                     onInserted(inserted)
-#if DEBUG
+            #if DEBUG
                     print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
-#endif
+            #endif
                 } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 30, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, height: 34)
-                        .background(.ultraThinMaterial.opacity(0.25))
-                        .clipShape(Circle())
+                    ZStack {
+                        Circle()
+                            .strokeBorder(.secondary.opacity(0.40), lineWidth: 1.1)
+
+                        Circle()
+                            .strokeBorder(.white.opacity(0.18), lineWidth: 0.8)
+                            .padding(1.0) // ほんの少し内側に
+
+                        Image(systemName: "plus")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 30, height: 30)
+                    .background(.ultraThinMaterial.opacity(0.25))
+                    .clipShape(Circle())
                 }
+
+
                 .buttonStyle(.plain)
-                .position(x: geo.size.width * plusXRatio, y: geo.size.height / 2)
+                .contentShape(Circle()) // タップ判定を丸に合わせる（任意）
+                .position(x: geo.size.width * plusXRatio,
+                          y: geo.size.height / 2)
             }
-            .frame(height: 30)
+
+            .frame(height: 32)
             .contentShape(Rectangle())
         }
         .frame(height: 30)
@@ -59,7 +77,7 @@ struct IngredientBlockHeaderRowView: View {
         id: UUID(),
         parentRecipeId: store.parentRecipeId,
         orderIndex: 0,
-        title: "調合preview"
+        title: "" //実際の文字入力
     )
 
     // ✅ Bindingがstore.rowsを参照するので、ここが必須
@@ -71,7 +89,7 @@ struct IngredientBlockHeaderRowView: View {
         onInserted: { _ in }
     )
     .padding()
-    .background(Color.black.opacity(0.03))
-    .overlay(Rectangle().stroke(.red.opacity(0.6), lineWidth: 1))
+    .background(Color.yellow.opacity(0.1))
+//    .overlay(Rectangle().stroke(.red.opacity(0.6), lineWidth: 1))
 }
 #endif

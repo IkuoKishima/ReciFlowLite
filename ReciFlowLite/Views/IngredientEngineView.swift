@@ -449,7 +449,7 @@ struct IngredientEngineView: View {
         // 【 下線 】
         .overlay(
             Rectangle()
-                .frame(height: 0.7) //線の太さ
+                .frame(height: 0.5) //線の太さ
                 .foregroundColor(Color(.systemGray4).opacity(0.75)) //線の濃さ
                 .padding(.leading, leftGutterWidth),
             alignment: .bottom
