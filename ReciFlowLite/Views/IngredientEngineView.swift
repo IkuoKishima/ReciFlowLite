@@ -6,6 +6,7 @@ struct IngredientEngineView: View {
     @Environment(\.scenePhase) private var scenePhase
     let DEBUG = true ////🟡エクステンションでデバッグ背景を有効にする
     
+    let recipeTitle: String
     @ObservedObject var store: IngredientEngineStore
     @State private var isDeleteMode = false // 削除モード
     @State private var selectedIndex: Int? = nil //🚧ここを止める予定
@@ -38,6 +39,9 @@ struct IngredientEngineView: View {
     private let amountWidth: CGFloat = 42 //分量フィールド幅
     private let unitWidth: CGFloat = 66 //単位フィールド幅
     private let leftGutterWidth: CGFloat = 20 //左ガターの幅
+   
+    private let rightRailWidth: CGFloat = 20 // ⚠️右干渉回避 44
+    private let rightRailGap: CGFloat = 8  // ちょい余白（好み）
 
     private let rowHeightSingle: CGFloat      = 34  // 単体＆blockItem
     private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
@@ -242,21 +246,25 @@ struct IngredientEngineView: View {
                     //EngineStoreを参照して表示するから、engineStore.rows)
                     let indexedRows = Array(store.rows.enumerated())
 
-                    ForEach(Array(store.rows.enumerated()), id: \.element.id) { index, row in
+                    
+                    ForEach(store.rows.indices, id: \.self) { index in
+                        let row = store.rows[index]
                         rowWithControls(for: row, at: index)
-                        //SwiftUIの行間を以下で制御する
-                        .padding(.horizontal, 8) //⚠️画面端からの距離
-                        .frame(height: rowHeight(for: row))//ヘッダ高連携
-//                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+                            .id(row.rowId)                 // ✅これが強い
+                            .padding(.horizontal, 8) //⚠️画面端からの距離
+                            .frame(height: rowHeight(for: row))//ヘッダ高連携
+                        //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
                     }
+
+                
 
 
                     .animation(.snappy, value: isDeleteMode)
                     Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                 }
 
-                .padding(.trailing, 20) // ⚠️右干渉回避
-//                .debugBG(DEBUG, Color.orange.opacity(0.06), "STACK")
+                .padding(.trailing, rightRailWidth + rightRailGap)
+//                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
                 
                 .onAppear {
                     store.loadIfNeeded() // 🔀本番用画面に入ったら読み込み
@@ -289,6 +297,48 @@ struct IngredientEngineView: View {
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
         .overlay(alignment: .topTrailing) {
+            // ① 土台：右が濃く、左へ霞む（帯幅を制御）
+                    LinearGradient(
+                        colors: [
+                            Color.brown.opacity(0.28), // 紙の濃い端
+                            Color.brown.opacity(0.18),
+                            Color.brown.opacity(0.02),
+                            Color.clear
+                        ],
+                        startPoint: .trailing,
+                        endPoint: .leading
+                    )
+                    .frame(width: 40 + 4) // 44=当たり判定 + 霞み
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+                    // ② 縁のハイライト（ガラスの“角”）
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 1)
+                        .offset(x: -2)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+
+                    // ③ 反射線（細い光。あると急にガラスになる）
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: 10)      // 反射線の太さ
+                    .offset(x: -10)        // 右端から少し内側
+                    .blendMode(.screen)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+            
+            
+            
+            
             UIKitRightDock(
                 mode: .back,
                 showsDelete: true,
@@ -332,12 +382,18 @@ struct IngredientEngineView: View {
                 centerYRatio: 0.28, minBottomPadding: 0
             )
             // 右端に“常駐する領域”を確保
-            .frame(width: 80)
+            .frame(width: 44)//⚠️背面干渉回避
             .ignoresSafeArea(.keyboard, edges: .bottom)//SafeArea管理
         }
+        
+        
+        //            .debugBG(DEBUG, Color.green.opacity(0.25), "干渉領域")
         .navigationBarBackButtonHidden(true)
         .padding(0) // “紙面”を削らない。余白はScroll内で管理
-        .navigationTitle("材料")
+        .navigationTitle(recipeTitle.isEmpty ? "材料" : recipeTitle)
+
+        
+
     }
     //✅ここはボディの外
    
@@ -519,10 +575,15 @@ struct IngredientEngineView: View {
                                 get: { $0.name },
                                 set: { $0.name = $1 }
                             ),
-                            placeholder: "材料"
+                            placeholder: "材料",
+                            shouldBecomeFirstResponder: store.pendingFocusItemId == item.id,
+                            onDidBecomeFirstResponder: {
+                                store.pendingFocusItemId = nil
+                            }
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(height: 30)
+
 //                        .debugBG(DEBUG, Color.blue.opacity(0.6), "block")//✅
                         
                         
@@ -577,7 +638,9 @@ private struct IngredientEnginePreviewContainer: View {
     @StateObject private var store = IngredientEngineStore.previewStore()
 
     var body: some View {
-        IngredientEngineView(store: store)
+        IngredientEngineView(
+            recipeTitle: "材料",
+            store: store)
     }
 }
 

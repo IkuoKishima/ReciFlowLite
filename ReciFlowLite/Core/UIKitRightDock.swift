@@ -56,7 +56,7 @@ struct UIKitRightDock: UIViewRepresentable {
         // --- swipe rail ---
         let rail = UIView()
         rail.translatesAutoresizingMaskIntoConstraints = false
-        rail.backgroundColor = UIColor.red.withAlphaComponent(0.02) // debug。リリース前にclearへ
+//        rail.backgroundColor = UIColor.red.withAlphaComponent(0.92) // ✅debug。リリース前にclearへ
         root.addSubview(rail)
 
         NSLayoutConstraint.activate([

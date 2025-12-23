@@ -15,3 +15,12 @@ enum IngredientRow: Identifiable, Equatable {
         }
     }
 }
+extension IngredientRow {
+    var rowId: UUID {
+        switch self {
+        case .single(let item):      return item.id
+        case .blockItem(let item):   return item.id
+        case .blockHeader(let block):return block.id
+        }
+    }
+}

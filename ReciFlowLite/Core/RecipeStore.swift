@@ -89,7 +89,7 @@ final class RecipeStore: ObservableObject {
     @discardableResult
     func addNewRecipeAndPersist() async -> UUID {
         let now = Date()
-        let title = "New" //足されるものに日付と時間を追加している
+        let title = "" //足されるものに日付と時間を追加している
 
         let new = Recipe(
             id: UUID(),
@@ -112,7 +112,7 @@ final class RecipeStore: ObservableObject {
 
     func updateRecipeMeta(recipeId: UUID, title: String, memo: String) {
         guard let idx = recipes.firstIndex(where: { $0.id == recipeId }) else { return }
-        let newTitle = title.isEmpty ? "New Recipe" : title
+        let newTitle = title.isEmpty ? "New" : title
         let newMemo  = memo
 
         let hasChanged =

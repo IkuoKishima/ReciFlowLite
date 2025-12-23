@@ -8,6 +8,7 @@ private struct IngredientEnginePreviewContainer: View {
 
     var body: some View {
         IngredientEngineView(
+            recipeTitle: "材料",
             store: .previewStore()
         )
     }

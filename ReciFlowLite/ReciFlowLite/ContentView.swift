@@ -18,7 +18,8 @@ struct ContentView: View {
 
                         case .engine(let id):
                             IngredientEngineView(
-                                store: store.engineStore(for: id),
+                                recipeTitle: store.recipes.first(where: { $0.id == id })?.title ?? "Menu",
+                                        store: store.engineStore(for: id),
                                 onPrimary: { path.removeLast() },
                                 onHome: { path = [] },
                                 onSwipeLeft: { },
