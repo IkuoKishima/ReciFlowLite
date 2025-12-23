@@ -726,7 +726,7 @@ extension IngredientEngineStore {
         let block = IngredientBlock(
             parentRecipeId: store.parentRecipeId,
             orderIndex: 2,
-            title: "調合"
+            title: "サンプルタイトル"
         )
 
         store.rows.append(.blockHeader(block))

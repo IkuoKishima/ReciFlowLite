@@ -19,7 +19,7 @@ struct IngredientBlockHeaderRowView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                TextField("調合", text: titleBinding)
+                TextField("GroupTitle", text: titleBinding)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textFieldStyle(.plain)

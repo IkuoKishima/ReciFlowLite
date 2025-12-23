@@ -302,7 +302,10 @@ extension IngredientEngineStore {
     // グローバル2x2　ブロックヘッダも同じ規則で固定
     @discardableResult
     func addBlockHeaderAtGlobalRail() -> Int {
-        let newBlock = IngredientBlock(parentRecipeId: parentRecipeId, orderIndex: 0, title: "調合")
+        let newBlock = IngredientBlock(
+            parentRecipeId: parentRecipeId,
+            orderIndex: 0, title: "GroupTitle" //ブロックヘッダタイトル
+        )
 
         guard let railId = globalRailRowId,
                 let selectedIndex = rows.firstIndex(where: { $0.id == railId })
@@ -436,7 +439,7 @@ extension IngredientEngineStore {
         let block = IngredientBlock(
             parentRecipeId: parentRecipeId,
             orderIndex: 0,
-            title: "調合"
+            title: "" //ブロックヘッダタイトルデフォルト
         )
 
         rows.insert(.blockHeader(block), at: headerAt)

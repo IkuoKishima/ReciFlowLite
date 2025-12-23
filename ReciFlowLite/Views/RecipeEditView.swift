@@ -83,7 +83,7 @@ struct RecipeEditView: View {
             .padding(16)
         }
         .navigationBarBackButtonHidden(true)
-        .navigationTitle("レシピ名")
+        .navigationTitle("RecipeName")
 
         .onAppear {
 #if DEBUG
@@ -104,6 +104,47 @@ struct RecipeEditView: View {
 
         // ✅ 右ドックはそのまま
         .overlay(alignment: .topTrailing) {
+            // ① 土台：右が濃く、左へ霞む（帯幅を制御）
+                    LinearGradient(
+                        colors: [
+                            Color.brown.opacity(0.28), // 紙の濃い端
+                            Color.brown.opacity(0.18),
+                            Color.brown.opacity(0.02),
+                            Color.clear
+                        ],
+                        startPoint: .trailing,
+                        endPoint: .leading
+                    )
+                    .frame(width: 40 + 4) // 44=当たり判定 + 霞み
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+                    // ② 縁のハイライト（ガラスの“角”）
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 1)
+                        .offset(x: -2)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+
+                    // ③ 反射線（細い光。あると急にガラスになる）
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: 10)      // 反射線の太さ
+                    .offset(x: -10)        // 右端から少し内側
+                    .blendMode(.screen)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+            
+            
+            
             UIKitRightDock(
                 mode: .forward,
                 showsDelete: false,
@@ -141,8 +182,8 @@ struct RecipeEditView: View {
                 showsPrimary: true,
                 showsHome: true
             )
-            .frame(width: 80)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .frame(width: 44)//⚠️背面干渉回避
+            .ignoresSafeArea(.keyboard, edges: .bottom)//SafeArea管理
         }
     }
   
