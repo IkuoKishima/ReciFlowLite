@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Combine //⚠️ObservableObjectと@Published を使ったら必須
 
 
 // MARK: - 型・クラス（class）

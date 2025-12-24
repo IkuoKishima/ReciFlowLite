@@ -1,8 +1,6 @@
 /// MARK: - IngredientBlock.swift
 import Foundation
 
-import Foundation
-
 struct IngredientBlock: Identifiable, Equatable, Codable {
     let id: UUID
     var parentRecipeId: UUID

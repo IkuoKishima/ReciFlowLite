@@ -3,6 +3,7 @@
 
 import Foundation
 import UIKit
+import Combine //⚠️ObservableObjectと@Published を使ったら必須
 
 final class IngredientEngineStore: ObservableObject {
  

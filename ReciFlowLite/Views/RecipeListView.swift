@@ -1,3 +1,4 @@
+
 import SwiftUI
 
 struct RecipeListView: View {
@@ -59,6 +60,30 @@ struct RecipeListView: View {
                 .transition(.opacity)
             }
         }
+        
+        
+        // ✅ 空状態（初回ユーザー対策）
+        .overlay {
+            if !store.isLoading && store.recipes.isEmpty {
+                ContentUnavailableView {
+                    Label("レシピを記録しましょう", systemImage: "pencil.and.outline")
+                } description: {
+                    Text("Carve the recipe into memory")
+                } actions: {
+                    Button {
+                        Task {
+                            let newId = await store.addNewRecipeAndPersist()
+                            await MainActor.run { path.append(.edit(newId)) }
+                        }
+                    } label: {
+                        Label("最初のレシピを作る", systemImage: "square.and.pencil")
+                    }
+                }
+                .padding(.horizontal, 24)
+                .transition(.opacity)
+            }
+        }
+
 
         // ✅ Undoトースト（下部）
         .overlay(alignment: .bottom) {
@@ -93,12 +118,21 @@ struct RecipeListView: View {
                     await MainActor.run { path.append(.edit(newId)) }
                 }
             } label: {
-                Image(systemName: "plus")
-                    .font(.title2.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                    Circle()
+                        .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                    Circle()
+                        .strokeBorder(.black.opacity(0.10), lineWidth: 0.5)
+
+                    Image(systemName: "square.and.pencil")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
+                }
+                .frame(width: 46, height: 46)
             }
+
             .disabled(store.isLoading)
             .opacity(store.isLoading ? 0.3 : 1.0)
             .padding(.trailing, 18)
