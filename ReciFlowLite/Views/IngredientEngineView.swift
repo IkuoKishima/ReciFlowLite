@@ -7,11 +7,11 @@ struct IngredientEngineView: View {
     let DEBUG = true ////🟡エクステンションでデバッグ背景を有効にする
     
     let recipeTitle: String
+    @ObservedObject var recipeStore: RecipeStore
     @ObservedObject var store: IngredientEngineStore
     @State private var isDeleteMode = false // 削除モード
     @State private var selectedIndex: Int? = nil //🚧ここを止める予定
-    
-    
+
 
     
     // 🆕 外から注入される“アプリ操作”
@@ -274,20 +274,33 @@ struct IngredientEngineView: View {
                 }
                 
                 .onDisappear {
-                    store.flushSave(reason: "onDisappear")// ✅ 予約中があっても必ず確定保存
-                #if DEBUG
-                    print("✅ saved & cleared \(store.rows.count) rows")
-                #endif
-                }
-                
-                .onChange(of: scenePhase) { phase in
-                    if phase == .background || phase == .inactive {
-                        // ✅ アプリが裏に回る瞬間に確定保存
-                        store.flushSave(reason: "scenePhase=\(phase)")
-                        
-
+                    let didSave = store.saveNow(force: true)
+                    if didSave {
+                        recipeStore.touchRecipeUpdatedAt(store.parentRecipeId) // ← 見えないなら store.recipeId
                     }
                 }
+//                .onDisappear {
+//                    store.flushSave(reason: "onDisappear")// ✅ 予約中があっても必ず確定保存
+//                #if DEBUG
+//                    print("✅ saved & cleared \(store.rows.count) rows")
+//                #endif
+//                }
+                .onChange(of: scenePhase) { phase in
+                    if phase == .background {
+                        let didSave = store.saveNow(force: true)
+                        if didSave {
+                            recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
+                        }
+                    }
+                }
+//                .onChange(of: scenePhase) { phase in
+//                    if phase == .background || phase == .inactive {
+//                        // ✅ アプリが裏に回る瞬間に確定保存
+//                        store.flushSave(reason: "scenePhase=\(phase)")
+//                        
+//
+//                    }
+//                }
                 
                 
                 
@@ -387,7 +400,7 @@ struct IngredientEngineView: View {
         }
         
         
-        //            .debugBG(DEBUG, Color.green.opacity(0.25), "干渉領域")
+//                    .debugBG(DEBUG, Color.green.opacity(0.25), "干渉領域")
         .navigationBarBackButtonHidden(true)
         .padding(0) // “紙面”を削らない。余白はScroll内で管理
         .navigationTitle(recipeTitle.isEmpty ? "材料" : recipeTitle)
@@ -635,11 +648,13 @@ extension RecipeStore {
 
 #if DEBUG
 private struct IngredientEnginePreviewContainer: View {
+    @StateObject private var recipeStore = RecipeStore.previewStore()
     @StateObject private var store = IngredientEngineStore.previewStore()
 
     var body: some View {
         IngredientEngineView(
             recipeTitle: "材料",
+            recipeStore: recipeStore,
             store: store)
     }
 }

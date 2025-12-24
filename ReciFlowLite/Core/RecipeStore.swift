@@ -1,20 +1,66 @@
 /// MARK: - RecipeStore.swift
 
-//❷メモリ上に書かれた爪楊枝、束ねられた状態＋その束を操作するためのリモコン・どう操作するかを処理
+//メモリ上に書かれた爪楊枝、束ねられた状態＋その束を操作するためのリモコン・どう操作するかを処理
 
 import Foundation
 import SwiftUI
 
 
+// MARK: - 型・クラス（class）
+@MainActor
 final class RecipeStore: ObservableObject {
-    // MARK: - Published State
+    
+    
+    // MARK: - 🟨プロパティ（property）その物が持っているメモリ上の状態・値
+    
     @Published var recipes: [Recipe] = []
     @Published var isLoading: Bool = false
     @Published var pendingUndo: Recipe? = nil //1件Undoのために追記
-
+    private var engineStores: [UUID: IngredientEngineStore] = [:]
+ 
     
-    //削除要求（IndexSet）を受ける関数
-    @MainActor
+    
+    // MARK: - 🟨イニシャライザ（initializer / init）“RecipeStoreが生まれた瞬間に、レシピを読み込む” という初期動作
+    init() {
+            loadRecipes()
+    }
+   
+    
+    
+    // MARK: - 🟨　メソッド（method）挙動　その物ができる行動（処理・手順）
+    
+    // 材料更新で更新日時だけ更新
+    func touchRecipeUpdatedAt(_ recipeId: UUID) {
+        guard let idx = recipes.firstIndex(where: { $0.id == recipeId }) else { return }
+
+        recipes[idx].updatedAt = Date()
+        DatabaseManager.shared.update(recipe: recipes[idx])
+    }
+    
+    
+    
+    //読み込み系API
+   
+    func loadRecipes() {
+        isLoading = true
+        Task {
+            let fetched = await DatabaseManager.shared.fetchAllRecipes()
+            self.recipes = fetched
+            self.isLoading = false
+        }
+    }
+
+
+    //参照系API
+    func recipe(for id: UUID) -> Recipe? {
+        recipes.first(where: { $0.id == id })
+    }
+    
+    
+    
+
+    // 削除/追加（書き換える挙動 IndexSet）を受ける関数
+    
     func requestDelete(at offsets: IndexSet) {
         guard let index = offsets.first, recipes.indices.contains(index) else { return }
         let target = recipes[index]
@@ -29,7 +75,7 @@ final class RecipeStore: ObservableObject {
         DatabaseManager.shared.softDelete(recipeID: target.id)
     }
     
-    @MainActor
+    
     func undoDelete() {
         guard let r = pendingUndo else { return }
         pendingUndo = nil
@@ -43,40 +89,7 @@ final class RecipeStore: ObservableObject {
     
     
 
-    
-    // MARK: - Caches
-    private var engineStores: [UUID: IngredientEngineStore] = [:]
-    
-    // MARK: - 初期化
-    init() {
-            loadRecipes()
-        }
 
-    
-    // MARK: - Public API
-    
-    //読み込み系API
-    func loadRecipes() {
-        isLoading = true
-
-        Task { @MainActor in
-            let fetched = await DatabaseManager.shared.fetchAllRecipes()
-            self.recipes = fetched
-            self.isLoading = false
-        }
-    }
-
-    
-    //参照系API
-    func recipe(for id: UUID) -> Recipe? {
-        recipes.first(where: { $0.id == id })
-    }
-
-    
-    
-    
-    // MARK: - ファンクションの集まり
-    
     //「engineStore辞書」を追加
     func engineStore(for recipeId: UUID) -> IngredientEngineStore {
         if let existing = engineStores[recipeId] { return existing }

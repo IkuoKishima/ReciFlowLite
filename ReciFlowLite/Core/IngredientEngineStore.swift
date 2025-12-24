@@ -5,25 +5,40 @@ import Foundation
 import UIKit
 
 final class IngredientEngineStore: ObservableObject {
-    @Published var rows: [IngredientRow] = []
+ 
+    // MARK: - 🟨プロパティ（property）その物が持っているメモリ上の状態・値
     
-    // ✅ グローバルレール（最後に選択されたrow.id）
+    @Published var rows: [IngredientRow] = []
+    // グローバルレール（最後に選択されたrow.id）
     @Published var globalRailRowId: UUID? = nil
     @Published var blockInsertAnchorId: [UUID: UUID] = [:]   // blockId -> rowId
     
     private(set) var parentRecipeId: UUID
     
-    // ✅ 追加：未保存変更フラグ
+    // 未保存変更フラグ
     @Published private(set) var isDirty: Bool = false
 
-    // ✅ 追加：デバウンス保存用
+    //　デバウンス保存用
     private var saveWorkItem: DispatchWorkItem?
     private let debounceSeconds: TimeInterval = 0.6
     
-    //Taskが画面遷移で複数回走る可能性へのロック
+    //　Taskが画面遷移で複数回走る可能性へのロック
     private var isLoading = false
     
     @Published var pendingFocusItemId: UUID? = nil //追加アイテムに即フォーカスさせるためidを持たせる
+    
+  
+    
+    
+    // MARK: - 🟨イニシャライザ（initializer / init）“RecipeStoreが生まれた瞬間に、レシピを読み込む” という初期動作
+    
+    init(parentRecipeId: UUID) {
+        self.parentRecipeId = parentRecipeId
+    }
+    
+    
+    
+    // MARK: - 🟨　メソッド（method）挙動　その物ができる行動（処理・手順）
     
     //調合タイトルの記録
     // rows に入ってる blockHeader から title を読む
@@ -51,14 +66,8 @@ final class IngredientEngineStore: ObservableObject {
     }
 
     
-    // MARK: - 初期化処理
-    
-    init(parentRecipeId: UUID) {
-        self.parentRecipeId = parentRecipeId
-    }
-    
-    
-    // ✅ 追加：変更が起きたら呼ぶ（＝保存予約）
+
+    // 変更が起きたら呼ぶ（＝保存予約）
     func markDirtyAndScheduleSave(reason: String = "") {
         isDirty = true
 
@@ -75,8 +84,11 @@ final class IngredientEngineStore: ObservableObject {
         if !reason.isEmpty { print("🟨 markDirty: \(reason)") }
         #endif
     }
+  
     
-    // ✅ 追加：即時保存（バックグラウンド/画面離脱など）
+    // MARK: - 🟨 保存（既存を少しだけ改造）
+    
+    // 即時保存（バックグラウンド/画面離脱など）
     func flushSave(reason: String = "") {
         saveWorkItem?.cancel()
         saveWorkItem = nil
@@ -87,28 +99,40 @@ final class IngredientEngineStore: ObservableObject {
         #endif
     }
     
-    // MARK: - 保存（既存を少しだけ改造）
-    func saveNow(force: Bool = false) {
-        // 「変更がないなら保存しない」＝もたつき軽減
-        if !force, !isDirty { return }
+    func saveNow(force: Bool = false) -> Bool {
+        if !force, !isDirty { return false } // 「変更がないなら保存しない」＝もたつき軽減
 
         DatabaseManager.shared.createIngredientTablesIfNeeded()
-        DatabaseManager.shared.replaceIngredientRows(
-            recipeId: parentRecipeId,
-            rows: rows
-        )
+        DatabaseManager.shared.replaceIngredientRows(recipeId: parentRecipeId, rows: rows)
 
         isDirty = false
-
-        #if DEBUG
-        print("✅ saved \(rows.count) rows (force=\(force))")
-        #endif
+#if DEBUG
+print("✅ saved \(rows.count) rows (force=\(force))")
+#endif
+        return true
     }
+
+//    func saveNow(force: Bool = false) {
+//        // 「変更がないなら保存しない」＝もたつき軽減
+//        if !force, !isDirty { return }
+//
+//        DatabaseManager.shared.createIngredientTablesIfNeeded()
+//        DatabaseManager.shared.replaceIngredientRows(
+//            recipeId: parentRecipeId,
+//            rows: rows
+//        )
+//
+//        isDirty = false
+//
+//        #if DEBUG
+//        print("✅ saved \(rows.count) rows (force=\(force))")
+//        #endif
+//    }
     
     
     // 🔀loadIfNeeded()を使わないでDB読み込み検証をするための記述
 
-    // MARK: - 読込（破壊テスト用：毎回DBから復元）
+    // MARK: - 🟨 読込（破壊テスト用：毎回DBから復元）
 //    func load() {
 //        #if DEBUG
 //        print("🟦 load start recipeId=\(parentRecipeId)")
@@ -270,7 +294,7 @@ extension IngredientEngineStore {
 
     
     
-    // 挿入本体：これで 「ブロックヘッダとブロックアイテムの間に割り込む」現象は、論理的に起きない
+    // MARK: - 🟨挿入本体：これで 「ブロックヘッダとブロックアイテムの間に割り込む」現象は、論理的に起きない
     /// ✅ グローバル＋：選択ユニットの「末尾」に single を入れる
     @discardableResult
     func addSingleAtGlobalRail() -> Int {
@@ -339,14 +363,6 @@ extension IngredientEngineStore {
         return inserted
     }
     
-  
-
-    
-    
-    
-    
-    
-
     /// rows配列の安全な「挿入先index」を作る
     /// - after: nil なら末尾、指定があれば「その直後」に挿入
     private func insertionIndex(after index: Int?) -> Int {
@@ -400,7 +416,7 @@ extension IngredientEngineStore {
  
     
     // Public API（プライベートと対義語の、誰でも使える・アプリケーション・プログラム・インターフェース）
-// MARK: - 行追加の中枢
+// MARK: - 🟨　行追加の中枢
     
     /// ＋：single を追加（追加位置は「タップ行の直後」／nilなら末尾）
     /// - Returns: 挿入された rows index（フォーカス合わせに使える）
@@ -452,7 +468,7 @@ extension IngredientEngineStore {
         return headerAt
     }
 
-    //🟡block内＋：指定 blockId の配下に blockItem を追加
+    //block内＋：指定 blockId の配下に blockItem を追加
     /// - after: nil なら「そのブロックの末尾」に追加（推奨・事故りにくい）
     /// - Returns: 挿入された rows index
     @discardableResult
@@ -496,7 +512,7 @@ extension IngredientEngineStore {
     
     
     
-// MARK: - 行削除（delete ボタン用の中枢）
+// MARK: - 🟨行削除（delete ボタン用の中枢）
     
     func deleteRow(at index: Int) {
         guard rows.indices.contains(index) else { return }
@@ -537,12 +553,6 @@ extension IngredientEngineStore {
         // [ヘッダ ..< 連続 blockItem の終端] をまとめて削除
         rows.removeSubrange(headerIndex ..< endIndex)
         
-        
-        //どのブロックが“ローカル並び替えモード”なのか」を示す状態（UI制御用）の時に必要な保険、
-        //@Published var localReorderBlockId: UUID?と一緒に使う
-//        if localReorderBlockId == blockId {
-//            localReorderBlockId = nil
-//        }
         
     }
     
