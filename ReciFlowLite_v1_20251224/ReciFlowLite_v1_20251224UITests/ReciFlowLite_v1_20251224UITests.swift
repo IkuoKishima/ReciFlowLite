@@ -1,13 +1,13 @@
 //
-//  ReciFlowLiteUITests.swift
-//  ReciFlowLiteUITests
+//  ReciFlowLite_v1_20251224UITests.swift
+//  ReciFlowLite_v1_20251224UITests
 //
 //  Created by 木嶋育朗 on 2025/12/24.
 //
 
 import XCTest
 
-final class ReciFlowLiteUITests: XCTestCase {
+final class ReciFlowLite_v1_20251224UITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

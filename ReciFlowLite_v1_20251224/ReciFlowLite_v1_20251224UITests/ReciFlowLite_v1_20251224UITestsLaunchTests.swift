@@ -1,13 +1,13 @@
 //
-//  ReciFlowLiteUITestsLaunchTests.swift
-//  ReciFlowLiteUITests
+//  ReciFlowLite_v1_20251224UITestsLaunchTests.swift
+//  ReciFlowLite_v1_20251224UITests
 //
 //  Created by 木嶋育朗 on 2025/12/24.
 //
 
 import XCTest
 
-final class ReciFlowLiteUITestsLaunchTests: XCTestCase {
+final class ReciFlowLite_v1_20251224UITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
