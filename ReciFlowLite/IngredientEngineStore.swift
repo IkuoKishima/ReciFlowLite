@@ -29,6 +29,7 @@ final class IngredientEngineStore: ObservableObject {
     @Published var pendingFocusItemId: UUID? = nil //追加アイテムに即フォーカスさせるためidを持たせる
     
     @Published var rowsRevision: Int = 0
+    
   
     
     
@@ -255,12 +256,12 @@ extension IngredientEngineStore {
 
         // 選択が無い → 末尾
         guard let railId = globalRailRowId,
-              let selectedIndex = rows.firstIndex(where: { $0.id == railId })
+                let selectedIndex = rows.firstIndex(where: { $0.id == railId })
         else {
             rows.append(.single(newItem))
             let inserted = rows.count - 1
             globalRailRowId = rows[inserted].id
-            markDirtyAndScheduleSave(reason: "addSingleAtGlobalRail")
+            didMutateRows(reason: "addSingleAtGlobalRail")
             return rows[inserted].id
         }
 
@@ -268,12 +269,10 @@ extension IngredientEngineStore {
         let insertIndex = range.upperBound
 
         rows.insert(.single(newItem), at: insertIndex)
-        reindexAll()
         globalRailRowId = rows[insertIndex].id
-        markDirtyAndScheduleSave(reason: "addSingleAtGlobalRail")
+        didMutateRows(reason: "addSingleAtGlobalRail")
         return rows[insertIndex].id
     }
-
     
     // グローバル2x2　ブロックヘッダも同じ規則で固定
     @discardableResult
@@ -290,7 +289,7 @@ extension IngredientEngineStore {
             rows.append(.blockHeader(newBlock))
             let inserted = rows.count - 1
             globalRailRowId = rows[inserted].id
-            markDirtyAndScheduleSave(reason: "addBlockHeaderAtGlobalRail")
+            didMutateRows(reason: "addBlockHeaderAtGlobalRail")
             return rows[inserted].id
         }
 
@@ -298,22 +297,22 @@ extension IngredientEngineStore {
         let insertIndex = range.upperBound
 
         rows.insert(.blockHeader(newBlock), at: insertIndex)
-        reindexAll()
         globalRailRowId = rows[insertIndex].id
-        markDirtyAndScheduleSave(reason: "addBlockHeaderAtGlobalRail")
+        didMutateRows(reason: "addBlockHeaderAtGlobalRail")
         return rows[insertIndex].id
     }
+
 
     
     @discardableResult
     func addBlockItemAtBlockRail(blockId: UUID) -> Int {
         let afterIndex = indexOfRow(id: blockInsertAnchorId[blockId])
-        let inserted = addBlockItem(blockId: blockId, after: afterIndex)
+        let inserted = addBlockItem(blockId: blockId, after: afterIndex) // ← ここで didMutateRows 済み
 
         // ✅ block rail は更新する
         blockInsertAnchorId[blockId] = rows[inserted].id
 
-        // ❌ global rail は更新しない（←ここがv15の“流れ維持”の核）
+        // ❌ global rail は更新しない（v15の核）
         return inserted
     }
     
@@ -340,6 +339,7 @@ extension IngredientEngineStore {
                 rows[i] = .blockHeader(block)
             }
         }
+        bumpRevision()
     }
 
     /// 指定ブロックの「ブロック内末尾の index」を返す（無ければ header の index）
@@ -390,12 +390,10 @@ extension IngredientEngineStore {
 
         rows.insert(.single(newItem), at: insertAt)
         pendingFocusItemId = newItem.id
+
+        didMutateRows(reason: "addSingle")
         
-        reindexAll()
-
-
         DBLOG("✅ addSingle insertAt=\(insertAt) rows=\(rows.count)")
-
 
         return insertAt
     }
@@ -413,11 +411,9 @@ extension IngredientEngineStore {
         )
 
         rows.insert(.blockHeader(block), at: headerAt)
-        reindexAll()
-
+        didMutateRows(reason: "addBlock")
 
         DBLOG("✅ addBlock(header only) headerAt=\(headerAt) blockId=\(block.id)")
-
 
         return headerAt
     }
@@ -453,7 +449,7 @@ extension IngredientEngineStore {
 
         rows.insert(.blockItem(newItem), at: insertAt)
         pendingFocusItemId = newItem.id
-        reindexAll()
+        didMutateRows(reason: "addBlockItem")
 
 
         DBLOG("✅ addBlockItem blockId=\(blockId) insertAt=\(insertAt) rows=\(rows.count)")
@@ -466,23 +462,66 @@ extension IngredientEngineStore {
     
     
     
-// MARK: - 🟨行削除（delete ボタン用の中枢）
-    
+    // MARK: - 🟨行削除（delete ボタン用の中枢）
+
+    private func normalizeRailsAfterDelete() {
+        // --- global rail ---
+        if let rid = globalRailRowId,
+           rows.firstIndex(where: { $0.id == rid }) == nil {
+            globalRailRowId = rows.last?.id
+        }
+
+        // --- block rails ---
+        for (blockId, rid) in blockInsertAnchorId {
+            if rows.firstIndex(where: { $0.id == rid }) == nil {
+                blockInsertAnchorId[blockId] = lastRowIdInBlock(blockId: blockId)
+            }
+        }
+    }
+
+    private func lastRowIdInBlock(blockId: UUID) -> UUID? {
+        var headerId: UUID? = nil
+        var lastItemId: UUID? = nil
+
+        for row in rows {
+            if case .blockHeader(let b) = row, b.id == blockId {
+                headerId = b.id
+            }
+            if case .blockItem(let it) = row, it.parentBlockId == blockId {
+                lastItemId = it.id
+            }
+        }
+        return lastItemId ?? headerId
+    }
+
+
+    private func didMutateRows(reason: String = "") {
+        // rows構造が変わったら必ずここを通す
+        reindexAll() // bumpRevision() 含む
+        markDirtyAndScheduleSave(reason: reason)
+    }
+
+    private func didMutateRowsAndFlush(reason: String = "") {
+        // ✅ 即保存したい操作（delete等）用
+        reindexAll() // bumpRevision() 含む
+        flushSave(reason: reason) // ここで saveWorkItem も cancel される
+    }
+
     func deleteRow(at index: Int) {
         guard rows.indices.contains(index) else { return }
 
         switch rows[index] {
-        case .single, .blockItem: // 単体行は 1 行だけ削除　ブロック内はヘッダは残る
+        case .single, .blockItem:
             rows.remove(at: index)
-            
 
         case .blockHeader(let block):
-            // ブロックヘッダ＋同じ blockId を持つ blockItem をまとめて削除
             deleteBlock(blockId: block.id, startingAt: index)
         }
-        reindexAll()   // ⚠️orderIndex をDB保存に使うので、delete後に reindexAll() は必須
-        flushSave(reason: "deleteRow")// ✅ deleteだけ即保存
+
+        normalizeRailsAfterDelete() 
+        didMutateRowsAndFlush(reason: "deleteRow")
     }
+
     
     
 

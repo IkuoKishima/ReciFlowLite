@@ -354,9 +354,10 @@ struct IngredientEngineView: View {
                     store.loadIfNeeded()
                     router.rebuild(rows: store.rows)
                 }
-                .onChange(of: store.rows.count) { _ in
+                .onChange(of: store.rowsRevision) { _ in
                     router.rebuild(rows: store.rows)
                 }
+
                 
                 .onDisappear {
                     let didSave = store.saveNow(force: true)
