@@ -112,20 +112,36 @@ struct IngredientEngineView: View {
     }
 
 
-    
-//    private func addSingleAndSelect() {
-//        let inserted = store.addSingle(after: store.indexOfRow(id: selectedRowId))
-//        let newId = store.rows[inserted].id
-//        selectedRowId = newId
-//        store.userDidSelectRow(newId)
-//    }
+    private func focusableRowIdForTap(row: IngredientRow, index: Int) -> UUID? {
+        switch row {
+        case .single(let it):
+            return it.id
 
-//    private func addBlockAndSelect() {
-//        let inserted = store.addBlock(after: store.indexOfRow(id: selectedRowId))
-//        let newId = store.rows[inserted].id
-//        selectedRowId = newId
-//        store.userDidSelectRow(newId)
-//    }
+        case .blockItem(let it):
+            return it.id
+
+        case .blockHeader(let block):
+            var i = index + 1
+            while i < store.rows.count {
+                switch store.rows[i] {
+                case .blockItem(let it) where it.parentBlockId == block.id:
+                    return it.id
+                case .blockItem:
+                    // 別ブロックのitem（通常ここには来ない想定だが念のため）
+                    return nil
+                case .blockHeader:
+                    // 次のブロックに入った＝このブロックには item が無い
+                    return nil
+                case .single:
+                    // ブロックが途切れた
+                    return nil
+                }
+                i += 1
+            }
+            return nil
+        }
+    }
+
 
 
 
@@ -533,6 +549,12 @@ struct IngredientEngineView: View {
             if case .blockItem(let item) = row, let blockId = item.parentBlockId {
                 store.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
             }
+            
+            if let rid = focusableRowIdForTap(row: row, index: index) {
+                // “次の移動の起点” をタップだけで確定させる（v15踏襲）
+                router.reportFocused(rowId: rid, field: .name)
+            }
+
 
 
             DBLOG("✅ tapped index=\(index) role=\(row.role) rail=\(row.id)")
