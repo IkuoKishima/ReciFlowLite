@@ -4,16 +4,53 @@ import SwiftUI
 import UIKit
 
 struct SelectAllTextField: UIViewRepresentable {
+
+    // MARK: - Config
+
+    struct Config {
+        struct Focus {
+            var rowId: UUID
+            var field: FocusCoordinate.Field
+            var onReport: (UUID, FocusCoordinate.Field) -> Void
+        }
+
+        struct InternalFocus {
+            var begin: (() -> Void)?
+            var end: (() -> Void)?
+        }
+
+        struct Nav {
+            var done: (() -> Void)?
+            var up: (() -> Void)?
+            var down: (() -> Void)?
+            var left: (() -> Void)?
+            var right: (() -> Void)?
+        }
+
+        var onDidBecomeFirstResponder: (() -> Void)?
+        var onCommit: (() -> Void)?
+        var internalFocus: InternalFocus = .init(begin: nil, end: nil)
+        var focus: Focus?
+        var nav: Nav = .init(done: nil, up: nil, down: nil, left: nil, right: nil)
+
+        static let empty = Config()
+    }
+
+    // MARK: - Inputs (minimal)
+
     @Binding var text: String
     var placeholder: String = ""
     var shouldBecomeFirstResponder: Bool = false
-    var onDidBecomeFirstResponder: (() -> Void)? = nil
     var textAlignment: NSTextAlignment = .left
     var keyboardType: UIKeyboardType = .default
-    var onCommit: (() -> Void)? = nil
+
+    var config: Config = .empty
+
+    // MARK: - UIViewRepresentable
 
     func makeUIView(context: Context) -> UITextField {
         let tf = UITextField()
+
         tf.attributedPlaceholder = NSAttributedString(
             string: placeholder,
             attributes: [
@@ -21,12 +58,14 @@ struct SelectAllTextField: UIViewRepresentable {
             ]
         )
 
-//        tf.textAlignment = .right
         tf.delegate = context.coordinator
         tf.textAlignment = textAlignment
         tf.keyboardType = keyboardType
+
         tf.addTarget(context.coordinator, action: #selector(Coordinator.editChanged(_:)), for: .editingChanged)
         tf.addTarget(context.coordinator, action: #selector(Coordinator.editDidBegin(_:)), for: .editingDidBegin)
+
+        tf.inputAccessoryView = NavigationDockController.shared.toolbar
         return tf
     }
 
@@ -37,26 +76,59 @@ struct SelectAllTextField: UIViewRepresentable {
 
         if shouldBecomeFirstResponder && !uiView.isFirstResponder {
             DispatchQueue.main.async {
+                self.config.internalFocus.begin?()
                 uiView.becomeFirstResponder()
                 uiView.selectAll(nil)
-                onDidBecomeFirstResponder?()
+                self.config.internalFocus.end?()
             }
         }
-    }
 
+        // “今アクティブなTextField”に対して Dock の命令先を更新
+        context.coordinator.updateNavHandlers(nav: config.nav)
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    final class Coordinator: NSObject, UITextFieldDelegate {
+    // MARK: - Coordinator
+
+    final class Coordinator: NSObject, UITextFieldDelegate, NavigationDockDelegate {
         var parent: SelectAllTextField
-        init(_ parent: SelectAllTextField) { self.parent = parent }
+        private weak var activeTextField: UITextField?
+
+        private var nav: Config.Nav = .init(done: nil, up: nil, down: nil, left: nil, right: nil)
+
+        init(_ parent: SelectAllTextField) {
+            self.parent = parent
+            super.init()
+        }
+
+        func updateNavHandlers(nav: Config.Nav) {
+            self.nav = nav
+        }
+
+        func textFieldDidBeginEditing(_ textField: UITextField) {
+            activeTextField = textField
+            NavigationDockController.shared.delegate = self
+
+            parent.config.onDidBecomeFirstResponder?()
+
+            if let focus = parent.config.focus {
+                focus.onReport(focus.rowId, focus.field)
+            }
+        }
+
+        // NavigationDockDelegate
+        func navDone()  { activeTextField?.resignFirstResponder(); nav.done?() }
+        func navUp()    { activeTextField?.resignFirstResponder(); nav.up?() }
+        func navDown()  { activeTextField?.resignFirstResponder(); nav.down?() }
+        func navLeft()  { activeTextField?.resignFirstResponder(); nav.left?() }
+        func navRight() { activeTextField?.resignFirstResponder(); nav.right?() }
 
         @objc func editChanged(_ sender: UITextField) {
             parent.text = sender.text ?? ""
         }
 
         @objc func editDidBegin(_ sender: UITextField) {
-            // ✅ ここが「全選択」
             DispatchQueue.main.async {
                 if !(sender.text ?? "").isEmpty {
                     sender.selectAll(nil)
@@ -65,8 +137,8 @@ struct SelectAllTextField: UIViewRepresentable {
         }
 
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-            parent.onCommit?()
-            return true
+            parent.config.onCommit?()
+            return false
         }
     }
 }

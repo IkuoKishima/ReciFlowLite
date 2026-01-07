@@ -15,16 +15,19 @@ struct IngredientEngineView: View {
     @ObservedObject var store: IngredientEngineStore
     @State private var isDeleteMode = false // 削除モード
     @State private var selectedRowId: UUID? = nil
+    
+    private enum Field { case name, amount, unit }
+    @StateObject private var router = FocusRouter()
 
 
 
     
-    // 🆕 外から注入される“アプリ操作”
+    // 外から注入される“アプリ操作”
     var onPrimary: () -> Void = {}
     var onHome: () -> Void = {}
     var onSwipeLeft: () -> Void = {}
     var onSwipeRight: () -> Void = {}
-    var onDelete: () -> Void = {}   // 🆕 左の削除領域用（必要なら）
+    var onDelete: () -> Void = {}   // 左の削除領域用（必要なら）
 
     // MARK: - キーボード閉じ関数
     private func dismissKeyboard() {
@@ -60,9 +63,72 @@ struct IngredientEngineView: View {
     }
 
     
+    // MARK: - ────　縦横アクセサリ部品はここの集約　 ─────　//
+    private enum EngineCommand {
+        case dismissKeyboard
+        case moveUp
+        case moveDown
+        case moveLeft
+        case moveRight
+        case enterNext          // Return/Enter
+        case addSingle
+        case addBlock
+    }
+
+    private func perform(_ cmd: EngineCommand) {
+        switch cmd {
+        case .dismissKeyboard:
+            dismissKeyboard()
+
+        case .moveUp:
+            router.moveUp()
+
+        case .moveDown:
+            router.moveDown()
+
+        case .moveLeft:
+            router.moveLeft()
+
+        case .moveRight:
+            router.moveRight()
+
+        case .enterNext:
+            router.enterNext()
+
+        case .addSingle:
+            let inserted = store.addSingle(after: store.indexOfRow(id: router.current?.rowId))
+            // 追加後に rebuild → 新行へフォーカス
+            router.rebuild(rows: store.rows)
+            if case .single(let it) = store.rows[inserted] {
+                router.beginInternalFocusUpdate()
+                router.reportFocused(rowId: it.id, field: .name)
+                router.endInternalFocusUpdate()
+            }
+
+        case .addBlock:
+            _ = store.addBlock(after: store.indexOfRow(id: router.current?.rowId))
+            router.rebuild(rows: store.rows)
+        }
+    }
 
 
     
+//    private func addSingleAndSelect() {
+//        let inserted = store.addSingle(after: store.indexOfRow(id: selectedRowId))
+//        let newId = store.rows[inserted].id
+//        selectedRowId = newId
+//        store.userDidSelectRow(newId)
+//    }
+
+//    private func addBlockAndSelect() {
+//        let inserted = store.addBlock(after: store.indexOfRow(id: selectedRowId))
+//        let newId = store.rows[inserted].id
+//        selectedRowId = newId
+//        store.userDidSelectRow(newId)
+//    }
+
+
+
     
     // MARK: - ────　ブラケット部品はここの集約　 ─────　//
    
@@ -270,7 +336,10 @@ struct IngredientEngineView: View {
                 
                 .onAppear {
                     store.loadIfNeeded()
-
+                    router.rebuild(rows: store.rows)
+                }
+                .onChange(of: store.rows.count) { _ in
+                    router.rebuild(rows: store.rows)
                 }
                 
                 .onDisappear {
@@ -349,19 +418,9 @@ struct IngredientEngineView: View {
                     isDeleteMode.toggle()
                 },
 
-                onAddSingle: {
-                    let inserted = store.addSingle(after: store.indexOfRow(id: selectedRowId))
-                    let newId = store.rows[inserted].id
-                    selectedRowId = newId
-                    store.userDidSelectRow(newId)              // ← これを追加（重要）
-                },
+                onAddSingle: { perform(.addSingle) },
 
-                onAddBlock: {
-                    let inserted = store.addBlock(after: store.indexOfRow(id: selectedRowId))
-                    let newId = store.rows[inserted].id
-                    selectedRowId = newId
-                    store.userDidSelectRow(newId)              // ← これを追加
-                },
+                onAddBlock:  { perform(.addBlock) },
 
 
                 onPrimary: {
@@ -503,11 +562,32 @@ struct IngredientEngineView: View {
                             set: { $0.name = $1 }
                         ),
                         placeholder: "材料",
-                            shouldBecomeFirstResponder: store.pendingFocusItemId == item.id,
-                            onDidBecomeFirstResponder: {
-                                store.pendingFocusItemId = nil
-                            }
+                        shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
+                        config: .init(
+                            onDidBecomeFirstResponder: { },
+                            onCommit: { perform(.enterNext) },
+                            internalFocus: .init(
+                                begin: { router.beginInternalFocusUpdate() },
+                                end:   { router.endInternalFocusUpdate() }
+                            ),
+                            focus: .init(
+                                rowId: item.id,
+                                field: .name,
+                                onReport: { id, field in
+                                    router.reportFocused(rowId: id, field: field)
+                                }
+                            ),
+                            nav: .init(
+                                done:  { perform(.dismissKeyboard) },
+                                up:    { perform(.moveUp) },
+                                down:  { perform(.moveDown) },
+                                left:  { perform(.moveLeft) },
+                                right: { perform(.moveRight) }
+                            )
                         )
+                    )
+
+
 //                    .debugBG(DEBUG, Color.orange.opacity(0.6), "Single")//✅
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 30)
@@ -520,9 +600,32 @@ struct IngredientEngineView: View {
                             set: { $0.amount = $1 }
                         ),
                         placeholder: "分量",
-                        textAlignment: .right,     //右寄せ
-                        keyboardType: .decimalPad //数字キーボード
+                        shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
+                        textAlignment: .right,           // ← 差分①
+                        keyboardType: .decimalPad,       // ← 差分②
+                        config: .init(
+                            onCommit: { perform(.enterNext) },
+                            internalFocus: .init(
+                                begin: { router.beginInternalFocusUpdate() },
+                                end:   { router.endInternalFocusUpdate() }
+                            ),
+                            focus: .init(
+                                rowId: item.id,
+                                field: .amount,          // ← 差分③
+                                onReport: { id, field in
+                                    router.reportFocused(rowId: id, field: field)
+                                }
+                            ),
+                            nav: .init(
+                                done:  { perform(.dismissKeyboard) },
+                                up:    { perform(.moveUp) },
+                                down:  { perform(.moveDown) },
+                                left:  { perform(.moveLeft) },
+                                right: { perform(.moveRight) }
+                            )
+                        )
                     )
+
                     .frame(width: amountWidth, alignment: .trailing)
 
 
@@ -534,6 +637,29 @@ struct IngredientEngineView: View {
                             set: { $0.unit = $1 }
                     ),
                         placeholder: "単位",
+                        shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
+                        config: .init(
+                            onDidBecomeFirstResponder: { },
+                            onCommit: { perform(.enterNext) },
+                            internalFocus: .init(
+                                begin: { router.beginInternalFocusUpdate() },
+                                end:   { router.endInternalFocusUpdate() }
+                            ),
+                            focus: .init(
+                                rowId: item.id,
+                                field: .unit,
+                                onReport: { id, field in
+                                    router.reportFocused(rowId: id, field: field)
+                                }
+                            ),
+                            nav: .init(
+                                done:  { perform(.dismissKeyboard) },
+                                up:    { perform(.moveUp) },
+                                down:  { perform(.moveDown) },
+                                left:  { perform(.moveLeft) },
+                                right: { perform(.moveRight) }
+                            )
+                        )
                     )
                     .frame(width: unitWidth, alignment: .leading)
                 }
@@ -554,9 +680,11 @@ struct IngredientEngineView: View {
                         // inserted は rows の index で返ってくる想定
                         // → 選択は rowId で持つ
                         if store.rows.indices.contains(inserted) {
-                            selectedRowId = store.rows[inserted].id
+                            let newId = store.rows[inserted].id
+                            selectedRowId = newId
+                            store.userDidSelectRow(newId)
                         } else {
-                            selectedRowId = nil
+                            // 何もしない（前の選択を維持）
                         }
                     }
                 }
@@ -585,10 +713,29 @@ struct IngredientEngineView: View {
                                 set: { $0.name = $1 }
                             ),
                             placeholder: "材料",
-                            shouldBecomeFirstResponder: store.pendingFocusItemId == item.id,
-                            onDidBecomeFirstResponder: {
-                                store.pendingFocusItemId = nil
-                            }
+                            shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
+                            config: .init(
+                                onDidBecomeFirstResponder: { },
+                                onCommit: { perform(.enterNext) },
+                                internalFocus: .init(
+                                    begin: { router.beginInternalFocusUpdate() },
+                                    end:   { router.endInternalFocusUpdate() }
+                                ),
+                                focus: .init(
+                                    rowId: item.id,
+                                    field: .name,
+                                    onReport: { id, field in
+                                        router.reportFocused(rowId: id, field: field)
+                                    }
+                                ),
+                                nav: .init(
+                                    done:  { perform(.dismissKeyboard) },
+                                    up:    { perform(.moveUp) },
+                                    down:  { perform(.moveDown) },
+                                    left:  { perform(.moveLeft) },
+                                    right: { perform(.moveRight) }
+                                )
+                            )
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(height: 30)
@@ -603,8 +750,30 @@ struct IngredientEngineView: View {
                                 set: { $0.amount = $1 }
                             ),
                             placeholder: "分量",
-                            textAlignment: .right,     //右寄せ
-                            keyboardType: .decimalPad //数字キーボード
+                            shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
+                            textAlignment: .right,           // ← 差分①
+                            keyboardType: .decimalPad,       // ← 差分②
+                            config: .init(
+                                onCommit: { perform(.enterNext) },
+                                internalFocus: .init(
+                                    begin: { router.beginInternalFocusUpdate() },
+                                    end:   { router.endInternalFocusUpdate() }
+                                ),
+                                focus: .init(
+                                    rowId: item.id,
+                                    field: .amount,          // ← 差分③
+                                    onReport: { id, field in
+                                        router.reportFocused(rowId: id, field: field)
+                                    }
+                                ),
+                                nav: .init(
+                                    done:  { perform(.dismissKeyboard) },
+                                    up:    { perform(.moveUp) },
+                                    down:  { perform(.moveDown) },
+                                    left:  { perform(.moveLeft) },
+                                    right: { perform(.moveRight) }
+                                )
+                            )
                         )
                         .frame(width: amountWidth, alignment: .trailing)
 
@@ -617,6 +786,29 @@ struct IngredientEngineView: View {
                                 set: { $0.unit = $1 }
                         ),
                             placeholder: "単位",
+                            shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
+                            config: .init(
+                                onDidBecomeFirstResponder: { },
+                                onCommit: { perform(.enterNext) },
+                                internalFocus: .init(
+                                    begin: { router.beginInternalFocusUpdate() },
+                                    end:   { router.endInternalFocusUpdate() }
+                                ),
+                                focus: .init(
+                                    rowId: item.id,
+                                    field: .unit,
+                                    onReport: { id, field in
+                                        router.reportFocused(rowId: id, field: field)
+                                    }
+                                ),
+                                nav: .init(
+                                    done:  { perform(.dismissKeyboard) },
+                                    up:    { perform(.moveUp) },
+                                    down:  { perform(.moveDown) },
+                                    left:  { perform(.moveLeft) },
+                                    right: { perform(.moveRight) }
+                                )
+                            )
                         )
                         .frame(width: unitWidth, alignment: .leading)
                     }

@@ -29,8 +29,10 @@
 		90379E942EFBD12A00F72F6B /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E792EFBD12A00F72F6B /* LoadingView.swift */; };
 		90379E962EFBD7F400F72F6B /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E952EFBD7F400F72F6B /* DatabaseManager.swift */; };
 		90379E982EFBE82200F72F6B /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E972EFBE81100F72F6B /* DebugLog.swift */; };
-		904805CC2EFE005700D5B784 /* REDEME.md in Sources */ = {isa = PBXBuildFile; fileRef = 904805CB2EFE003C00D5B784 /* REDEME.md */; };
-		90FBA51E2F0B672000E4432E /* CHANGELOG.md in Sources */ = {isa = PBXBuildFile; fileRef = 90FBA51D2F0B66F200E4432E /* CHANGELOG.md */; };
+		90FBA55A2F0CC2CA00E4432E /* NavigationDockDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */; };
+		90FBA55C2F0CC6BE00E4432E /* GlassIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */; };
+		90FBA55E2F0D4C5900E4432E /* FocusCoordinate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */; };
+		90FBA5602F0D4D3F00E4432E /* FocusRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FBA55F2F0D4D3F00E4432E /* FocusRouter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,8 +77,12 @@
 		90379E7F2EFBD12A00F72F6B /* BracketPartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketPartView.swift; sourceTree = "<group>"; };
 		90379E952EFBD7F400F72F6B /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		90379E972EFBE81100F72F6B /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
-		904805CB2EFE003C00D5B784 /* REDEME.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = REDEME.md; sourceTree = "<group>"; };
+		904805CB2EFE003C00D5B784 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		90FBA51D2F0B66F200E4432E /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CHANGELOG.md; sourceTree = "<group>"; };
+		90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationDockDelegate.swift; sourceTree = "<group>"; };
+		90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassIconButton.swift; sourceTree = "<group>"; };
+		90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCoordinate.swift; sourceTree = "<group>"; };
+		90FBA55F2F0D4D3F00E4432E /* FocusRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -127,7 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				90FBA51D2F0B66F200E4432E /* CHANGELOG.md */,
-				904805CB2EFE003C00D5B784 /* REDEME.md */,
+				904805CB2EFE003C00D5B784 /* README.md */,
 				90379E972EFBE81100F72F6B /* DebugLog.swift */,
 				90379E732EFBD12A00F72F6B /* IngredientRow.swift */,
 				90379E6C2EFBD12A00F72F6B /* Keyboard.swift */,
@@ -141,14 +147,14 @@
 				90379E742EFBD12A00F72F6B /* IngredientBlock.swift */,
 				90379E7F2EFBD12A00F72F6B /* BracketPartView.swift */,
 				90379E752EFBD12A00F72F6B /* UIKitRightDock.swift */,
-				90379E762EFBD12A00F72F6B /* SelectAllTextField.swift */,
 				90379E772EFBD12A00F72F6B /* IngredientEngineStore.swift */,
 				90379E782EFBD12A00F72F6B /* RecipeStore.swift */,
-				90379E792EFBD12A00F72F6B /* LoadingView.swift */,
-				90379E7A2EFBD12A00F72F6B /* IngredientEngineView.swift */,
-				90379E7C2EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift */,
-				90379E7D2EFBD12A00F72F6B /* RecipeEditView.swift */,
-				90379E7E2EFBD12A00F72F6B /* RecipeListView.swift */,
+				90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */,
+				90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */,
+				90379E762EFBD12A00F72F6B /* SelectAllTextField.swift */,
+				90FBA55F2F0D4D3F00E4432E /* FocusRouter.swift */,
+				90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */,
+				90FBA5582F0CC24500E4432E /* View */,
 				90379E402EFBCFE400F72F6B /* ReciFlowLite */,
 				90379E4E2EFBCFE600F72F6B /* ReciFlowLiteTests */,
 				90379E582EFBCFE600F72F6B /* ReciFlowLiteUITests */,
@@ -164,6 +170,18 @@
 				90379E552EFBCFE600F72F6B /* ReciFlowLiteUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		90FBA5582F0CC24500E4432E /* View */ = {
+			isa = PBXGroup;
+			children = (
+				90379E7A2EFBD12A00F72F6B /* IngredientEngineView.swift */,
+				90379E7C2EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift */,
+				90379E7D2EFBD12A00F72F6B /* RecipeEditView.swift */,
+				90379E7E2EFBD12A00F72F6B /* RecipeListView.swift */,
+				90379E792EFBD12A00F72F6B /* LoadingView.swift */,
+			);
+			path = View;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -320,20 +338,22 @@
 				90379E822EFBD12A00F72F6B /* MaterialTheme.swift in Sources */,
 				90379E962EFBD7F400F72F6B /* DatabaseManager.swift in Sources */,
 				90379E832EFBD12A00F72F6B /* UIKitRightDock.swift in Sources */,
+				90FBA55E2F0D4C5900E4432E /* FocusCoordinate.swift in Sources */,
 				90379E842EFBD12A00F72F6B /* RecipeMetaStrip.swift in Sources */,
 				90379E852EFBD12A00F72F6B /* IngredientRow.swift in Sources */,
 				90379E862EFBD12A00F72F6B /* RecipeStore.swift in Sources */,
 				90379E872EFBD12A00F72F6B /* IngredientEngineView.swift in Sources */,
 				90379E882EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift in Sources */,
+				90FBA55A2F0CC2CA00E4432E /* NavigationDockDelegate.swift in Sources */,
 				90379E8A2EFBD12A00F72F6B /* BracketPartView.swift in Sources */,
 				90379E8C2EFBD12A00F72F6B /* IngredientBlock.swift in Sources */,
 				90379E8D2EFBD12A00F72F6B /* IngredientEngineStore.swift in Sources */,
 				90379E8E2EFBD12A00F72F6B /* Route.swift in Sources */,
 				90379E8F2EFBD12A00F72F6B /* RecipeListView.swift in Sources */,
-				904805CC2EFE005700D5B784 /* REDEME.md in Sources */,
 				90379E902EFBD12A00F72F6B /* IngredientItem.swift in Sources */,
 				90379E912EFBD12A00F72F6B /* Recipe.swift in Sources */,
-				90FBA51E2F0B672000E4432E /* CHANGELOG.md in Sources */,
+				90FBA5602F0D4D3F00E4432E /* FocusRouter.swift in Sources */,
+				90FBA55C2F0CC6BE00E4432E /* GlassIconButton.swift in Sources */,
 				90379E922EFBD12A00F72F6B /* SelectAllTextField.swift in Sources */,
 				90379E932EFBD12A00F72F6B /* Keyboard.swift in Sources */,
 				90379E942EFBD12A00F72F6B /* LoadingView.swift in Sources */,

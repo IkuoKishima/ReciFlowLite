@@ -28,6 +28,7 @@ final class IngredientEngineStore: ObservableObject {
     
     @Published var pendingFocusItemId: UUID? = nil //追加アイテムに即フォーカスさせるためidを持たせる
     
+    @Published var rowsRevision: Int = 0
   
     
     
@@ -40,6 +41,9 @@ final class IngredientEngineStore: ObservableObject {
     
     
     // MARK: - 🟨　メソッド（method）挙動　その物ができる行動（処理・手順）
+    
+    
+    private func bumpRevision() { rowsRevision &+= 1 }
     
     //調合タイトルの記録
     // rows に入ってる blockHeader から title を読む
