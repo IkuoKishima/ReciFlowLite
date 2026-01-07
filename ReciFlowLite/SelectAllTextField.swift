@@ -119,10 +119,11 @@ struct SelectAllTextField: UIViewRepresentable {
 
         // NavigationDockDelegate
         func navDone()  { activeTextField?.resignFirstResponder(); nav.done?() }
-        func navUp()    { activeTextField?.resignFirstResponder(); nav.up?() }
-        func navDown()  { activeTextField?.resignFirstResponder(); nav.down?() }
-        func navLeft()  { activeTextField?.resignFirstResponder(); nav.left?() }
-        func navRight() { activeTextField?.resignFirstResponder(); nav.right?() }
+        
+        func navUp()    { nav.up?() }
+        func navDown()  { nav.down?() }
+        func navLeft()  { nav.left?() }
+        func navRight() { nav.right?() }
 
         @objc func editChanged(_ sender: UITextField) {
             parent.text = sender.text ?? ""

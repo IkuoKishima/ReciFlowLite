@@ -53,34 +53,63 @@ final class FocusRouter: ObservableObject {
 
     func moveLeft() {
         guard let c = current else { return }
-        let nextRaw = max(0, c.field.rawValue - 1)
-        current = .init(rowId: c.rowId, field: FocusCoordinate.Field(rawValue: nextRaw) ?? .name)
+        guard !railRowIds.isEmpty else { return }
+
+        switch c.field {
+        case .unit:
+            current = .init(rowId: c.rowId, field: .amount)
+
+        case .amount:
+            current = .init(rowId: c.rowId, field: .name)
+
+        case .name:
+            // ✅ name で左＝前行の unit（先頭なら最終行へループ）
+            guard let r = railIndex(of: c.rowId) else { return }
+            let prevR = (r - 1 + railRowIds.count) % railRowIds.count
+            current = .init(rowId: railRowIds[prevR], field: .unit)
+        }
     }
 
     func moveRight() {
         guard let c = current else { return }
-        let nextRaw = min(2, c.field.rawValue + 1)
-        current = .init(rowId: c.rowId, field: FocusCoordinate.Field(rawValue: nextRaw) ?? .unit)
+        guard !railRowIds.isEmpty else { return }
+
+        switch c.field {
+        case .name:
+            current = .init(rowId: c.rowId, field: .amount)
+
+        case .amount:
+            current = .init(rowId: c.rowId, field: .unit)
+
+        case .unit:
+            // ✅ unit で右＝次行の name（最終なら先頭へループ）
+            guard let r = railIndex(of: c.rowId) else { return }
+            let nextR = (r + 1) % railRowIds.count
+            current = .init(rowId: railRowIds[nextR], field: .name)
+        }
     }
 
-    /// ↑↓ は「3刻み」＝同列移動（name: 0, amount:1, unit:2 を維持）
+
+    /// ↑↓ は「3刻み」＝同列移動＋上下のループ化（name: 0, amount:1, unit:2 を維持）
     func moveUp() {
         guard let c = current else { return }
-        guard let r = railIndex(of: c.rowId) else { return }
-        let nextR = max(0, r - 1)
+        guard let r = railIndex(of: c.rowId), !railRowIds.isEmpty else { return }
+        let nextR = (r - 1 + railRowIds.count) % railRowIds.count   // ✅ wrap
         current = .init(rowId: railRowIds[nextR], field: c.field)
     }
 
     func moveDown() {
         guard let c = current else { return }
-        guard let r = railIndex(of: c.rowId) else { return }
-        let nextR = min(railRowIds.count - 1, r + 1)
+        guard let r = railIndex(of: c.rowId), !railRowIds.isEmpty else { return }
+        let nextR = (r + 1) % railRowIds.count                      // ✅ wrap
         current = .init(rowId: railRowIds[nextR], field: c.field)
     }
 
-    /// Enter = 次へ（name→amount→unit→次行name）
+
+    /// Enter = 次へ（name→amount→unit→次行name）をループ化
     func enterNext() {
         guard let c = current else { return }
+        guard !railRowIds.isEmpty else { return }
 
         switch c.field {
         case .name:
@@ -88,14 +117,13 @@ final class FocusRouter: ObservableObject {
         case .amount:
             current = .init(rowId: c.rowId, field: .unit)
         case .unit:
-            guard let r = railIndex(of: c.rowId) else {
-                current = .init(rowId: c.rowId, field: .name)
-                return
-            }
-            let nextR = min(railRowIds.count - 1, r + 1)
+            guard let r = railIndex(of: c.rowId) else { return }
+            let nextR = (r + 1) % railRowIds.count
             current = .init(rowId: railRowIds[nextR], field: .name)
         }
     }
+
+
 
     private func railIndex(of rowId: UUID) -> Int? {
         railRowIds.firstIndex(of: rowId)
