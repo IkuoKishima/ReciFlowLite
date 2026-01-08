@@ -11,7 +11,7 @@ struct GlassIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.primary)
-                .frame(width: 34, height: 34)
+                .frame(width: 30, height: 30)
                 .background(
                     ZStack {
                         Circle().fill(.ultraThinMaterial)

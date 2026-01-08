@@ -7,41 +7,173 @@ let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 final class DatabaseManager {
     static let shared = DatabaseManager()
-    
-    private let db: OpaquePointer?
-    private let queue = DispatchQueue(label: "DatabaseManager") //安全のための直列キュー
-    
+
+    private let queue = DispatchQueue(label: "DatabaseManager") // 直列
+    private var db: OpaquePointer?
+
     private init() {
-        // 1. DBファイルパス
-        let filemanager = FileManager.default
-        let urls = filemanager.urls(for: .documentDirectory, in: .userDomainMask)
+        let fm = FileManager.default
+        let urls = fm.urls(for: .documentDirectory, in: .userDomainMask)
         let dbURL = urls[0].appendingPathComponent("ReciFlowLite.sqlite")
-        
+
         DBLOG("📁 Database path: \(dbURL.path)")
-        
-        // 2. open
-        var connection: OpaquePointer?
-        if sqlite3_open(dbURL.path, &connection) == SQLITE_OK {
-            DBLOG("✅ Database opend")
-            self.db = connection
-            // 3. テーブル作成
-            createTablesIfNeeded()
-            // 4. スキーマバージョンチェック（今はフックだけ）
-            migrateIfNeeded()
-        } else {
-            DBLOG("❌ Failed to open database")
+
+        // ✅ open → quick_check → NGなら退避して作り直す
+        guard openOrRecover(at: dbURL) else {
+            DBLOG("❌ Failed to open database even after recovery.")
+            self.db = nil
+            return
+        }
+
+        // create & migrate
+        createTablesIfNeeded()
+        migrateIfNeeded()
+    }
+
+    deinit {
+        close()
+    }
+
+    private func close() {
+        if let db = db {
+            sqlite3_close(db)
             self.db = nil
         }
     }
-    
-    deinit {
-        if let db = db {
-            sqlite3_close(db)
+
+    // MARK: - Open / Integrity / Recover
+
+    /// open → quick_check(1) → NGなら退避して作り直す
+    private func openOrRecover(at url: URL) -> Bool {
+        // 1) 普通に open
+        if open(at: url) == false {
+            DBLOG("⚠️ open failed, try quarantine & recreate")
+            quarantineDatabaseFile(at: url, reason: "open_failed")
+            return open(at: url)
+        }
+
+        // 2) 健全性チェック
+        if quickCheckIsOK() { return true }
+
+        DBLOG("⚠️ quick_check failed → quarantine & recreate")
+
+        // 3) 壊れてる可能性高：close → 退避 → 新規 open
+        close()
+        quarantineDatabaseFile(at: url, reason: "quick_check_failed")
+
+        guard open(at: url) else { return false }
+
+        // 4) 念のため再チェック
+        if quickCheckIsOK() { return true }
+
+        DBLOG("❌ quick_check still failing after recreate")
+        return false
+    }
+
+    private func open(at url: URL) -> Bool {
+        var connection: OpaquePointer?
+        let rc = sqlite3_open(url.path, &connection)
+        if rc == SQLITE_OK {
+            self.db = connection
+            DBLOG("✅ Database opened")
+            return true
+        } else {
+            let msg = connection.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+            DBLOG("❌ sqlite3_open error: \(msg)")
+            if let c = connection { sqlite3_close(c) }
+            return false
         }
     }
-    
-    // MARK: - スキーマ定義　＆　マイグレーション
-    
+
+    /// 軽量版：PRAGMA quick_check(1)
+    private func quickCheckIsOK() -> Bool {
+        guard let db = db else { return false }
+
+        return queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            let sql = "PRAGMA quick_check(1);"
+            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) != SQLITE_OK {
+                let msg = String(cString: sqlite3_errmsg(db))
+                DBLOG("❌ quick_check prepare failed: \(msg)")
+                return false
+            }
+
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                if let c = sqlite3_column_text(stmt, 0) {
+                    let s = String(cString: c)
+                    if s.lowercased() == "ok" {
+                        DBLOG("✅ quick_check OK")
+                        return true
+                    } else {
+                        DBLOG("❌ quick_check returned: \(s)")
+                        return false
+                    }
+                }
+            }
+
+            DBLOG("❌ quick_check no row")
+            return false
+        }
+    }
+
+    /// 壊れたDBを退避（同名を潰さないようタイムスタンプ付き）
+    private func quarantineDatabaseFile(at url: URL, reason: String) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return }
+
+        let ts = Self.timestampString()
+        let folder = url.deletingLastPathComponent()
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension.isEmpty ? "sqlite" : url.pathExtension
+
+        let newName = "\(base)_Corrupted_\(ts)_\(reason).\(ext)"
+        let dst = folder.appendingPathComponent(newName)
+
+        do {
+            try fm.moveItem(at: url, to: dst)
+            DBLOG("🧯 DB quarantined → \(dst.lastPathComponent)")
+        } catch {
+            DBLOG("⚠️ quarantine move failed: \(error.localizedDescription)")
+            do {
+                try fm.copyItem(at: url, to: dst)
+                try fm.removeItem(at: url)
+                DBLOG("🧯 DB copied+removed → \(dst.lastPathComponent)")
+            } catch {
+                DBLOG("❌ quarantine failed: \(error.localizedDescription)")
+            }
+        }
+
+        // -wal / -shm は最小で削除（残骸対策）
+        cleanupSidecarFiles(for: url)
+    }
+
+    /// WAL/SHM を掃除
+    private func cleanupSidecarFiles(for url: URL) {
+        let fm = FileManager.default
+        let wal = URL(fileURLWithPath: url.path + "-wal")
+        let shm = URL(fileURLWithPath: url.path + "-shm")
+
+        if fm.fileExists(atPath: wal.path) {
+            try? fm.removeItem(at: wal)
+            DBLOG("🧹 removed -wal")
+        }
+        if fm.fileExists(atPath: shm.path) {
+            try? fm.removeItem(at: shm)
+            DBLOG("🧹 removed -shm")
+        }
+    }
+
+    private static func timestampString() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd_HHmmss"
+        return f.string(from: Date())
+    }
+
+    // MARK: - Schema / Migration
+
     private func createTablesIfNeeded() {
         let sql = """
         CREATE TABLE IF NOT EXISTS recipes (
@@ -54,17 +186,14 @@ final class DatabaseManager {
         );
         """
         execute(sql: sql)
-        // ingredientも起動時に用意しておく（呼び忘れ防止）
         createIngredientTablesIfNeeded()
     }
-    
-    /// 将来のための「マイグレーションフック」
+
     private func migrateIfNeeded() {
         let currentVersion = 2
         let defaults = UserDefaults.standard
         let storedVersion = defaults.integer(forKey: "schemaVersion")
 
-        // ✅ ここで実DBの状態をチェックして必要ならALTERする（UserDefaultsだけ更新しない）
         ensureRecipesDeletedAtColumn()
 
         if storedVersion == 0 {
@@ -75,7 +204,6 @@ final class DatabaseManager {
 
         guard storedVersion < currentVersion else { return }
 
-        // v2 migration (必要なら今後ここに追加)
         defaults.set(currentVersion, forKey: "schemaVersion")
         DBLOG("🔀 Schema migrated from \(storedVersion) to \(currentVersion)")
     }
@@ -87,7 +215,6 @@ final class DatabaseManager {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
 
-            // PRAGMA table_info(recipes) でカラム一覧取得
             if sqlite3_prepare_v2(db, "PRAGMA table_info(recipes);", -1, &stmt, nil) != SQLITE_OK {
                 DBLOG("❌ PRAGMA table_info(recipes) failed")
                 return
@@ -95,7 +222,6 @@ final class DatabaseManager {
 
             var hasDeletedAt = false
             while sqlite3_step(stmt) == SQLITE_ROW {
-                // column name は index=1
                 if let cName = sqlite3_column_text(stmt, 1) {
                     let name = String(cString: cName)
                     if name == "deletedAt" { hasDeletedAt = true; break }
@@ -104,7 +230,6 @@ final class DatabaseManager {
 
             guard !hasDeletedAt else { return }
 
-            // 無ければ追加
             var err: UnsafeMutablePointer<Int8>?
             if sqlite3_exec(db, "ALTER TABLE recipes ADD COLUMN deletedAt REAL;", nil, nil, &err) == SQLITE_OK {
                 DBLOG("✅ ALTER TABLE recipes ADD COLUMN deletedAt")
@@ -116,12 +241,25 @@ final class DatabaseManager {
         }
     }
 
+    // MARK: - Internal SQL helper
 
+    private func execute(sql: String) {
+        guard let db = db else { return }
 
+        queue.sync {
+            var errorMessage: UnsafeMutablePointer<Int8>?
+            if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK {
+                if let errorMessage = errorMessage {
+                    let message = String(cString: errorMessage)
+                    DBLOG("❌ SQL exec error: \(message)")
+                    sqlite3_free(errorMessage)
+                }
+            }
+        }
+    }
 
-    
-    // MARK: - 公開メソッド (Store から呼ぶ用)
-    
+    // MARK: - Public API (Recipes)
+
     func fetchAllRecipes() async -> [Recipe] {
         guard let db = db else { return [] }
 
@@ -135,7 +273,6 @@ final class DatabaseManager {
                 WHERE deletedAt IS NULL
                 ORDER BY createdAt DESC;
                 """
-
 
                 var statement: OpaquePointer?
                 if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
@@ -156,8 +293,6 @@ final class DatabaseManager {
         }
     }
 
-
-    
     func insert(recipe: Recipe) async -> Bool {
         guard let db = db else { return false }
 
@@ -191,14 +326,8 @@ final class DatabaseManager {
         }
     }
 
-    
-    
-    // 注意: update は「変更確定」を意味する（閲覧ログではない）。
-    // 閲覧ログが必要になったら viewedAt を別カラムで追加する。
-
     func update(recipe: Recipe) {
         guard let db = db else { return }
-
 
         let sql = """
         UPDATE recipes
@@ -211,7 +340,6 @@ final class DatabaseManager {
             defer { sqlite3_finalize(statement) }
 
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                // ✅ Swiftの文字列は SQLITE_TRANSIENT で安全に統一
                 sqlite3_bind_text(statement, 1, recipe.title, -1, SQLITE_TRANSIENT)
                 sqlite3_bind_text(statement, 2, recipe.memo,  -1, SQLITE_TRANSIENT)
                 sqlite3_bind_double(statement, 3, recipe.updatedAt.timeIntervalSince1970)
@@ -230,9 +358,6 @@ final class DatabaseManager {
         }
     }
 
-    
-    
-    //論理削除に変えるため、事故らないように名前を変える
     func softDelete(recipeID: UUID) {
         guard let db = db else { return }
 
@@ -262,7 +387,6 @@ final class DatabaseManager {
         }
     }
 
-    // Undo用に新たに追記
     func restore(recipeID: UUID) {
         guard let db = db else { return }
 
@@ -291,37 +415,13 @@ final class DatabaseManager {
         }
     }
 
-    
-    // MARK: - 内部ヘルパー
-    
-    private func execute(sql: String) {
-        guard let db = db else { return }
-
-        queue.sync {
-            var errorMessage: UnsafeMutablePointer<Int8>?
-            if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK {
-                if let errorMessage = errorMessage {
-                    let message = String(cString: errorMessage)
-                    DBLOG("❌ SQL exec error: \(message)")
-                    sqlite3_free(errorMessage)
-                }
-            } else {
-                // DBLOG("✅ SQL exec success")
-            }
-        }
-    }
-    
     private static func readRecipeRow(statement: OpaquePointer?) -> Recipe? {
         guard let stmt = statement else { return nil }
-
-        // カラム index は SELECT の順番に対応
         guard
             let idCString = sqlite3_column_text(stmt, 0),
             let titleCString = sqlite3_column_text(stmt, 1),
             let memoCString = sqlite3_column_text(stmt, 2)
-        else {
-            return nil
-        }
+        else { return nil }
 
         let idString = String(cString: idCString)
         let title = String(cString: titleCString)
@@ -330,9 +430,7 @@ final class DatabaseManager {
         let createdAtTime = sqlite3_column_double(stmt, 3)
         let updatedAtTime = sqlite3_column_double(stmt, 4)
 
-        guard let id = UUID(uuidString: idString) else {
-            return nil
-        }
+        guard let id = UUID(uuidString: idString) else { return nil }
 
         return Recipe(
             id: id,
@@ -342,23 +440,21 @@ final class DatabaseManager {
             updatedAt: Date(timeIntervalSince1970: updatedAtTime)
         )
     }
-    
+
     private static func bind(recipe: Recipe, to stmt: OpaquePointer?) {
         guard let stmt else { return }
-
         sqlite3_bind_text(stmt, 1, recipe.id.uuidString, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, recipe.title,        -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, recipe.memo,         -1, SQLITE_TRANSIENT)
         sqlite3_bind_double(stmt, 4, recipe.createdAt.timeIntervalSince1970)
         sqlite3_bind_double(stmt, 5, recipe.updatedAt.timeIntervalSince1970)
     }
-
 }
 
+// MARK: - Ingredient tables
 
 extension DatabaseManager {
 
-    // rowKind: 0=single, 1=blockHeader, 2=blockItem
     enum IngredientRowKind: Int32 {
         case single = 0
         case blockHeader = 1
@@ -397,23 +493,18 @@ extension DatabaseManager {
         }
     }
 
-    // MARK: - Public API
-
-    /// v1（delete → insert）
     func replaceIngredientRows(recipeId: UUID, rows: [IngredientRow]) {
         guard let db = db else { return }
 
         queue.sync {
             var ok = true
 
-            // 0) BEGIN
             if sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION;", nil, nil, nil) != SQLITE_OK {
                 let errorMsg = String(cString: sqlite3_errmsg(db))
                 DBLOG("❌ replaceIngredientRows BEGIN error: \(errorMsg)")
                 return
             }
 
-            // ✅ 成功したときだけCOMMIT / 失敗したらROLLBACK
             defer {
                 if ok {
                     if sqlite3_exec(db, "COMMIT;", nil, nil, nil) != SQLITE_OK {
@@ -428,7 +519,7 @@ extension DatabaseManager {
                 }
             }
 
-            // 1) delete
+            // delete
             do {
                 let delSQL = "DELETE FROM ingredient_rows WHERE recipeId = ?;"
                 var delStmt: OpaquePointer?
@@ -450,7 +541,7 @@ extension DatabaseManager {
                 }
             }
 
-            // 2) insert
+            // insert
             let insSQL = """
             INSERT INTO ingredient_rows
             (id, recipeId, kind, orderIndex, blockId, title, name, amount, unit)
@@ -462,7 +553,6 @@ extension DatabaseManager {
                 defer { sqlite3_finalize(insStmt) }
 
                 for (index, row) in rows.enumerated() {
-                    // orderIndex は現在の配列順を正とする
                     let orderIndex = index
 
                     let id: UUID
@@ -503,35 +593,20 @@ extension DatabaseManager {
                     sqlite3_bind_int(insStmt, 3, kind.rawValue)
                     sqlite3_bind_int(insStmt, 4, Int32(orderIndex))
 
-                    if let blockId {
-                        sqlite3_bind_text(insStmt, 5, blockId, -1, SQLITE_TRANSIENT)
-                    } else {
-                        sqlite3_bind_null(insStmt, 5)
-                    }
+                    if let blockId { sqlite3_bind_text(insStmt, 5, blockId, -1, SQLITE_TRANSIENT) }
+                    else { sqlite3_bind_null(insStmt, 5) }
 
-                    if let title {
-                        sqlite3_bind_text(insStmt, 6, title, -1, SQLITE_TRANSIENT)
-                    } else {
-                        sqlite3_bind_null(insStmt, 6)
-                    }
+                    if let title { sqlite3_bind_text(insStmt, 6, title, -1, SQLITE_TRANSIENT) }
+                    else { sqlite3_bind_null(insStmt, 6) }
 
-                    if let name {
-                        sqlite3_bind_text(insStmt, 7, name, -1, SQLITE_TRANSIENT)
-                    } else {
-                        sqlite3_bind_null(insStmt, 7)
-                    }
+                    if let name { sqlite3_bind_text(insStmt, 7, name, -1, SQLITE_TRANSIENT) }
+                    else { sqlite3_bind_null(insStmt, 7) }
 
-                    if let amount {
-                        sqlite3_bind_text(insStmt, 8, amount, -1, SQLITE_TRANSIENT)
-                    } else {
-                        sqlite3_bind_null(insStmt, 8)
-                    }
+                    if let amount { sqlite3_bind_text(insStmt, 8, amount, -1, SQLITE_TRANSIENT) }
+                    else { sqlite3_bind_null(insStmt, 8) }
 
-                    if let unit {
-                        sqlite3_bind_text(insStmt, 9, unit, -1, SQLITE_TRANSIENT)
-                    } else {
-                        sqlite3_bind_null(insStmt, 9)
-                    }
+                    if let unit { sqlite3_bind_text(insStmt, 9, unit, -1, SQLITE_TRANSIENT) }
+                    else { sqlite3_bind_null(insStmt, 9) }
 
                     if sqlite3_step(insStmt) != SQLITE_DONE {
                         ok = false
@@ -549,10 +624,6 @@ extension DatabaseManager {
         }
     }
 
-    
-}
-extension DatabaseManager {
-
     func fetchIngredientRows(recipeId: UUID) async -> [IngredientRow] {
         await withCheckedContinuation { cont in
             queue.async { [weak self] in
@@ -566,120 +637,132 @@ extension DatabaseManager {
         }
     }
 
-    // 既存の中身を _fetchIngredientRowsSync に移す（queue.sync を消す）
     private func _fetchIngredientRowsSync(recipeId: UUID) -> [IngredientRow] {
-       
-            guard let db = db else { return [] }
+        guard let db = db else { return [] }
 
-            let sql = """
-            SELECT id, kind, orderIndex, blockId, title, name, amount, unit
-            FROM ingredient_rows
-            WHERE recipeId = ?
-            ORDER BY orderIndex ASC;
-            """
+        let sql = """
+        SELECT id, kind, orderIndex, blockId, title, name, amount, unit
+        FROM ingredient_rows
+        WHERE recipeId = ?
+        ORDER BY orderIndex ASC;
+        """
 
-            var result: [IngredientRow] = []
+        var result: [IngredientRow] = []
 
-            // ✅ 直にDB処理を書く（＝あなたの中身をそのまま置く）
-            var statement: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                defer { sqlite3_finalize(statement) }
+        var statement: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+            defer { sqlite3_finalize(statement) }
 
-                sqlite3_bind_text(statement, 1, recipeId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 1, recipeId.uuidString, -1, SQLITE_TRANSIENT)
 
-                while sqlite3_step(statement) == SQLITE_ROW {
-                    guard
-                        let idC = sqlite3_column_text(statement, 0)
-                    else { continue }
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let idC = sqlite3_column_text(statement, 0) else { continue }
 
-                    let kindRaw = sqlite3_column_int(statement, 1) 
-                    let kind = DatabaseManager.IngredientRowKind(rawValue: kindRaw) ?? .single
+                let kindRaw = sqlite3_column_int(statement, 1)
+                let kind = IngredientRowKind(rawValue: kindRaw) ?? .single
 
-                    let orderIndex = Int(sqlite3_column_int(statement, 2))
+                let orderIndex = Int(sqlite3_column_int(statement, 2))
 
-                    let blockIdStr: String? = {
-                        guard let c = sqlite3_column_text(statement, 3) else { return nil }
-                        let s = String(cString: c)
-                        return s.isEmpty ? nil : s
-                    }()
+                let blockIdStr: String? = {
+                    guard let c = sqlite3_column_text(statement, 3) else { return nil }
+                    let s = String(cString: c)
+                    return s.isEmpty ? nil : s
+                }()
 
-                    let title: String = {
-                        guard let c = sqlite3_column_text(statement, 4) else { return "" }
-                        return String(cString: c)
-                    }()
+                let title: String = {
+                    guard let c = sqlite3_column_text(statement, 4) else { return "" }
+                    return String(cString: c)
+                }()
 
-                    let name: String = {
-                        guard let c = sqlite3_column_text(statement, 5) else { return "" }
-                        return String(cString: c)
-                    }()
+                let name: String = {
+                    guard let c = sqlite3_column_text(statement, 5) else { return "" }
+                    return String(cString: c)
+                }()
 
-                    let amount: String = {
-                        guard let c = sqlite3_column_text(statement, 6) else { return "" }
-                        return String(cString: c)
-                    }()
+                let amount: String = {
+                    guard let c = sqlite3_column_text(statement, 6) else { return "" }
+                    return String(cString: c)
+                }()
 
-                    let unit: String = {
-                        guard let c = sqlite3_column_text(statement, 7) else { return "" }
-                        return String(cString: c)
-                    }()
+                let unit: String = {
+                    guard let c = sqlite3_column_text(statement, 7) else { return "" }
+                    return String(cString: c)
+                }()
 
-                    let id = UUID(uuidString: String(cString: idC)) ?? UUID()
+                let id = UUID(uuidString: String(cString: idC)) ?? UUID()
 
-                    switch kind {
-                    case .blockHeader:
-                        DBLOG("""
-                        🧩 blockHeader loaded
-                           blockId: \(id)
-                           title: \(title)
-                        """)
+                switch kind {
+                case .blockHeader:
+                    let block = IngredientBlock(
+                        id: id,
+                        parentRecipeId: recipeId,
+                        orderIndex: orderIndex,
+                        title: title
+                    )
+                    result.append(.blockHeader(block))
 
-                        let block = IngredientBlock(
-                            id: id,
-                            parentRecipeId: recipeId,
-                            orderIndex: orderIndex,
-                            title: title
-                        )
-                        result.append(.blockHeader(block))
+                case .single:
+                    let item = IngredientItem(
+                        id: id,
+                        parentRecipeId: recipeId,
+                        parentBlockId: nil,
+                        orderIndex: orderIndex,
+                        name: name,
+                        amount: amount,
+                        unit: unit
+                    )
+                    result.append(.single(item))
 
-                    case .single:
-                        let item = IngredientItem(
-                            id: id,
-                            parentRecipeId: recipeId,
-                            parentBlockId: nil,
-                            orderIndex: orderIndex,
-                            name: name,
-                            amount: amount,
-                            unit: unit
-                        )
-                        result.append(.single(item))
-
-                    case .blockItem:
-                        let pbid = blockIdStr.flatMap(UUID.init(uuidString:))
-
-                        DBLOG("""
-                        🧱 blockItem loaded
-                           itemId: \(id)
-                           parentBlockId: \(pbid?.uuidString ?? "nil")
-                           name: \(name)
-                        """)
-
-                        let item = IngredientItem(
-                            id: id,
-                            parentRecipeId: recipeId,
-                            parentBlockId: pbid,
-                            orderIndex: orderIndex,
-                            name: name,
-                            amount: amount,
-                            unit: unit
-                        )
-                        result.append(.blockItem(item))
-                    }
+                case .blockItem:
+                    let pbid = blockIdStr.flatMap(UUID.init(uuidString:))
+                    let item = IngredientItem(
+                        id: id,
+                        parentRecipeId: recipeId,
+                        parentBlockId: pbid,
+                        orderIndex: orderIndex,
+                        name: name,
+                        amount: amount,
+                        unit: unit
+                    )
+                    result.append(.blockItem(item))
                 }
-            } else {
-                let errorMsg = String(cString: sqlite3_errmsg(db))
-                DBLOG("❌ fetchIngredientRows prepare error: \(errorMsg)")
             }
-
-            return result
+        } else {
+            let errorMsg = String(cString: sqlite3_errmsg(db))
+            DBLOG("❌ fetchIngredientRows prepare error: \(errorMsg)")
         }
+
+        return result
+    }
 }
+
+#if DEBUG
+extension DatabaseManager {
+    /// 次回起動で必ず quick_check が落ちるように、DB先頭を破壊する（復旧テスト用）
+    func debugCorruptDatabaseFile() {
+        let fm = FileManager.default
+        let urls = fm.urls(for: .documentDirectory, in: .userDomainMask)
+        let dbURL = urls[0].appendingPathComponent("ReciFlowLite.sqlite")
+
+        close()
+
+        guard fm.fileExists(atPath: dbURL.path) else {
+            DBLOG("⚠️ debugCorruptDatabaseFile: db file not found")
+            return
+        }
+
+        do {
+            var data = try Data(contentsOf: dbURL)
+            if data.count >= 32 {
+                for i in 0..<32 { data[i] = UInt8.random(in: 0...255) }
+            } else {
+                data = Data()
+            }
+            try data.write(to: dbURL, options: .atomic)
+            DBLOG("🧪 DB corrupted for test: \(dbURL.lastPathComponent)")
+        } catch {
+            DBLOG("❌ debugCorruptDatabaseFile failed: \(error.localizedDescription)")
+        }
+    }
+}
+#endif

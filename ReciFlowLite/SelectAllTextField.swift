@@ -123,8 +123,6 @@ struct SelectAllTextField: UIViewRepresentable {
             }
         }
         
-//        func navRightByTab() { nav.right?() }
-//        func navLeftByShiftTab() { nav.left?() }
         func navRightByTab() {
             parent.config.internalFocus.begin?()   // ✅ beginInternalFocusUpdate に繋がってる前提
             nav.right?()
@@ -162,6 +160,13 @@ struct SelectAllTextField: UIViewRepresentable {
             parent.config.onCommit?()
             return false
         }
+        
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            if NavigationDockController.shared.delegate === self {
+                NavigationDockController.shared.delegate = nil
+            }
+        }
+
     }
     
     // MARK: - Tab Shift+Tab対応ロジック
