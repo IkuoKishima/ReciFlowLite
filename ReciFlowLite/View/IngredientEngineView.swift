@@ -18,6 +18,7 @@ struct IngredientEngineView: View {
     
     private enum Field { case name, amount, unit }
     @StateObject private var router = FocusRouter()
+    @State private var didRequestInitialFocus = false
 
 
 
@@ -29,17 +30,17 @@ struct IngredientEngineView: View {
     var onSwipeRight: () -> Void = {}
     var onDelete: () -> Void = {}   // 左の削除領域用（必要なら）
 
-    // MARK: - キーボード閉じ関数
+    // MARK: - キーボード閉じ関数（確実版）
     private func dismissKeyboard() {
-        #if canImport(UIKit)
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
-        #endif
+    #if canImport(UIKit)
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .endEditing(true)
+    #endif
     }
+
 
 
     // MARK: - ──── 行の高さ・行間はここの集約　 ─────　//
@@ -97,12 +98,9 @@ struct IngredientEngineView: View {
 
         case .addSingle:
             let inserted = store.addSingle(after: store.indexOfRow(id: router.current?.rowId))
-            // 追加後に rebuild → 新行へフォーカス
             router.rebuild(rows: store.rows)
             if case .single(let it) = store.rows[inserted] {
-                router.beginInternalFocusUpdate()
-                router.reportFocused(rowId: it.id, field: .name)
-                router.endInternalFocusUpdate()
+                router.set(.init(rowId: it.id, field: .name))
             }
 
         case .addBlock:
@@ -319,63 +317,96 @@ struct IngredientEngineView: View {
 
 
 
-    // MARK: - ===== 💬　表示ページ本体はここから　💬　=====　//
+    // MARK: - ===== 🟨　表示ページ本体はここから　🟨　=====　//
     
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
-
-
-                    //EngineStoreを参照して表示するから、engineStore.rows)
-                    let indexedRows = Array(store.rows.enumerated())
-
-                    ForEach(indexedRows, id: \.element.id) { index, row in
-                        rowWithControls(for: row, at: index)
-                            .id(row.id) // ← row.rowId ではなく「その行の本体ID」に統一
-                            .padding(.horizontal, 8) //⚠️画面端からの距離
-                            .frame(height: rowHeight(for: row))//ヘッダ高連携
-                        //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+        ZStack(alignment: .bottomTrailing) {
+            // ===== スクロール本体 =====
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
+                        
+                        
+                        //EngineStoreを参照して表示するから、engineStore.rows)
+                        let indexedRows = Array(store.rows.enumerated())
+                        
+                        ForEach(indexedRows, id: \.element.id) { index, row in
+                            rowWithControls(for: row, at: index)
+                                .id(row.id) // ← row.rowId ではなく「その行の本体ID」に統一
+                                .padding(.horizontal, 8) //⚠️画面端からの距離
+                                .frame(height: rowHeight(for: row))//ヘッダ高連携
+                            //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+                        }
+                        
+                        
+                        
+                        
+                        .animation(.snappy, value: isDeleteMode)
+                        Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
                     }
+                    
+                    .padding(.trailing, rightRailWidth + rightRailGap)
+                    //                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
+                    
+                    .onAppear {
+                        store.loadIfNeeded()
+                        router.rebuild(rows: store.rows)
 
-                
+                        guard !didRequestInitialFocus else { return }
+                        didRequestInitialFocus = true
 
-
-                    .animation(.snappy, value: isDeleteMode)
-                    Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
-                }
-
-                .padding(.trailing, rightRailWidth + rightRailGap)
-//                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
-                
-                .onAppear {
-                    store.loadIfNeeded()
-                    router.rebuild(rows: store.rows)
-                }
-                .onChange(of: store.rowsRevision) { _ in
-                    router.rebuild(rows: store.rows)
-                }
-
-                
-                .onDisappear {
-                    let didSave = store.saveNow(force: true)
-                    if didSave {
-                        recipeStore.touchRecipeUpdatedAt(store.parentRecipeId) // ← 見えないなら store.recipeId
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                            guard !store.rows.isEmpty else { return }
+                            router.rebuild(rows: store.rows) // 念のため最新に
+                            router.focusFirstIfNeeded()
+                        }
                     }
-                }
+                    
 
-                .onChange(of: scenePhase) { phase in
-                    if phase == .background {
+
+                    .onChange(of: store.rowsRevision) { _ in
+                        router.rebuild(rows: store.rows)
+
+                        // ✅ rows が揃ったタイミングで初回だけ初期フォーカス
+                        guard !didRequestInitialFocus else { return }
+                        didRequestInitialFocus = true
+
+                        DispatchQueue.main.async {
+                            router.focusFirstIfNeeded()
+                        }
+                    }
+                    .onDisappear {
+                        dismissKeyboard()
+                        router.clear()
+
                         let didSave = store.saveNow(force: true)
                         if didSave {
                             recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
                         }
                     }
+                    
+                    .onChange(of: scenePhase) { phase in
+                        if phase == .background {
+                            let didSave = store.saveNow(force: true)
+                            if didSave {
+                                recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
+                            }
+                        }
+                    }
+                    .onChange(of: router.current) { newValue in
+                        guard let c = newValue else { return }
+                        //rowId が今の rows に存在するときだけ scroll
+                        guard store.indexOfRow(id: c.rowId) != nil else { return }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                proxy.scrollTo(c.rowId, anchor: .center)
+                            }
+                        }
+                    }
+
                 }
+                //            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
             }
-//            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
         }
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
@@ -443,7 +474,11 @@ struct IngredientEngineView: View {
                 onPrimary: {
                     // UIKit側で閉じるボタンもあるが、遷移前にも閉じると事故が減る
                     dismissKeyboard()
-                    onPrimary()
+                    router.clear()
+                    // “キーボード収納の開始” を先に走らせてから遷移
+                    DispatchQueue.main.async {
+                        onPrimary()
+                    }
                 },
                 onHome: {
                     dismissKeyboard()

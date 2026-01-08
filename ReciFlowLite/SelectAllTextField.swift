@@ -182,24 +182,4 @@ struct SelectAllTextField: UIViewRepresentable {
         }
     }
 
-//    private final class KeyCommandTextField: UITextField {
-//        var onTab: (() -> Void)?
-//        var onShiftTab: (() -> Void)?
-//
-//        override var keyCommands: [UIKeyCommand]? {
-//            [
-//                UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(handleTab)),
-//                UIKeyCommand(input: "\t", modifierFlags: [.shift], action: #selector(handleShiftTab))
-//            ]
-//        }
-//
-//        @objc private func handleTab() {
-//            onTab?()
-//        }
-//
-//        @objc private func handleShiftTab() {
-//            onShiftTab?()
-//        }
-//    }
-
 }

@@ -15,25 +15,45 @@ final class FocusRouter: ObservableObject {
     // 内部更新ガード（becomeFirstResponder → didBegin のループ回避）
     private var isInternalUpdate = false
 
+    // MARK: - External control (SwiftUI -> Router)
+
+    /// 外部からフォーカス座標を指示する（nil で解除もできる）
+    func set(_ newValue: FocusCoordinate?) {
+        // 変化がないなら何もしない（ログ爆発・無駄スクロールを抑える）
+        guard current != newValue else { return }
+        beginInternalFocusUpdate()
+        current = newValue
+        endInternalFocusUpdate()
+    }
+
+    /// フォーカス解除
+    func clear() {
+        set(nil)
+    }
+
+    /// 初期フォーカスを入れたい場面だけ、明示的に呼ぶ
+    func focusFirstIfNeeded() {
+        guard current == nil, let first = railRowIds.first else { return }
+        set(.init(rowId: first, field: .name))
+    }
+
     // MARK: - Build / Rebuild
 
     /// rows から「フォーカス可能 rowId レール」を作る
     func rebuild(rows: [IngredientRow]) {
-        let newRail: [UUID] = rows.compactMap { row in
+        railRowIds = rows.compactMap { row in
             switch row {
             case .single(let item): return item.id
             case .blockItem(let item): return item.id
             case .blockHeader: return nil
             }
         }
-        railRowIds = newRail
 
-        // current がレールから消えたら、近い場所へ退避
+        // ✅ current が消えたときだけ退避（削除対策）
         if let c = current, !railRowIds.contains(c.rowId) {
             current = fallbackAfterRebuild()
-        } else if current == nil {
-            current = fallbackAfterRebuild()
         }
+        // current == nil のときは何もしない（初期フォーカスは外から入れる）
     }
 
     private func fallbackAfterRebuild() -> FocusCoordinate? {
@@ -43,21 +63,11 @@ final class FocusRouter: ObservableObject {
 
     // MARK: - Sync (UIKit -> Router)
 
-    /// UITextFieldDidBeginEditing から「実フォーカス」を報告する
+    /// UITextFieldDidBeginEditing から「実フォーカス」を報告する（※外部setとは別）
     func reportFocused(rowId: UUID, field: FocusCoordinate.Field) {
-    #if DEBUG
-    DBLOG("🟪 reportFocused called row=\(rowId) field=\(field) internal=\(isInternalUpdate)")
-    #endif
-        guard !isInternalUpdate else {
-        #if DEBUG
-        DBLOG("🟪 reportFocused ignored (internal update)")
-        #endif
-            return
-        }
+        guard !isInternalUpdate else { return }
+        guard current != .init(rowId: rowId, field: field) else { return } // ✅ 同値抑制
         current = .init(rowId: rowId, field: field)
-    #if DEBUG
-    DBLOG("🟪 reportFocused accepted -> current=\(rowId) \(field)")
-    #endif
     }
 
     // MARK: - Commands (Dock / Enter)
@@ -67,14 +77,9 @@ final class FocusRouter: ObservableObject {
         guard !railRowIds.isEmpty else { return }
 
         switch c.field {
-        case .unit:
-            current = .init(rowId: c.rowId, field: .amount)
-
-        case .amount:
-            current = .init(rowId: c.rowId, field: .name)
-
+        case .unit:   current = .init(rowId: c.rowId, field: .amount)
+        case .amount: current = .init(rowId: c.rowId, field: .name)
         case .name:
-            // ✅ name で左＝前行の unit（先頭なら最終行へループ）
             guard let r = railIndex(of: c.rowId) else { return }
             let prevR = (r - 1 + railRowIds.count) % railRowIds.count
             current = .init(rowId: railRowIds[prevR], field: .unit)
@@ -86,47 +91,36 @@ final class FocusRouter: ObservableObject {
         guard !railRowIds.isEmpty else { return }
 
         switch c.field {
-        case .name:
-            current = .init(rowId: c.rowId, field: .amount)
-
-        case .amount:
-            current = .init(rowId: c.rowId, field: .unit)
-
+        case .name:   current = .init(rowId: c.rowId, field: .amount)
+        case .amount: current = .init(rowId: c.rowId, field: .unit)
         case .unit:
-            // ✅ unit で右＝次行の name（最終なら先頭へループ）
             guard let r = railIndex(of: c.rowId) else { return }
             let nextR = (r + 1) % railRowIds.count
             current = .init(rowId: railRowIds[nextR], field: .name)
         }
     }
 
-
-    /// ↑↓ は「3刻み」＝同列移動＋上下のループ化（name: 0, amount:1, unit:2 を維持）
     func moveUp() {
         guard let c = current else { return }
         guard let r = railIndex(of: c.rowId), !railRowIds.isEmpty else { return }
-        let nextR = (r - 1 + railRowIds.count) % railRowIds.count   // ✅ wrap
+        let nextR = (r - 1 + railRowIds.count) % railRowIds.count
         current = .init(rowId: railRowIds[nextR], field: c.field)
     }
 
     func moveDown() {
         guard let c = current else { return }
         guard let r = railIndex(of: c.rowId), !railRowIds.isEmpty else { return }
-        let nextR = (r + 1) % railRowIds.count                      // ✅ wrap
+        let nextR = (r + 1) % railRowIds.count
         current = .init(rowId: railRowIds[nextR], field: c.field)
     }
 
-
-    /// Enter = 次へ（name→amount→unit→次行name）をループ化
     func enterNext() {
         guard let c = current else { return }
         guard !railRowIds.isEmpty else { return }
 
         switch c.field {
-        case .name:
-            current = .init(rowId: c.rowId, field: .amount)
-        case .amount:
-            current = .init(rowId: c.rowId, field: .unit)
+        case .name:   current = .init(rowId: c.rowId, field: .amount)
+        case .amount: current = .init(rowId: c.rowId, field: .unit)
         case .unit:
             guard let r = railIndex(of: c.rowId) else { return }
             let nextR = (r + 1) % railRowIds.count
@@ -134,15 +128,12 @@ final class FocusRouter: ObservableObject {
         }
     }
 
-
-
     private func railIndex(of rowId: UUID) -> Int? {
         railRowIds.firstIndex(of: rowId)
     }
 
-    // MARK: - SwiftUI -> UIKit focus request helper
+    // MARK: - Internal Focus Update Guard
 
-    /// becomeFirstResponder を指示する直前に呼ぶ（didBeginのreportでループしないように）
     func beginInternalFocusUpdate() { isInternalUpdate = true }
     func endInternalFocusUpdate()   { isInternalUpdate = false }
 }
