@@ -49,7 +49,7 @@ struct SelectAllTextField: UIViewRepresentable {
     // MARK: - UIViewRepresentable
 
     func makeUIView(context: Context) -> UITextField {
-        let tf = UITextField()
+        let tf = KeyCommandTextField()
 
         tf.attributedPlaceholder = NSAttributedString(
             string: placeholder,
@@ -85,6 +85,12 @@ struct SelectAllTextField: UIViewRepresentable {
 
         // “今アクティブなTextField”に対して Dock の命令先を更新
         context.coordinator.updateNavHandlers(nav: config.nav)
+        
+        // ✅ Tab / Shift+Tab を “今のアクティブ設定” に追従させる
+        if let tf = uiView as? KeyCommandTextField {
+            tf.onTab = { context.coordinator.navRightByTab() }
+            tf.onShiftTab = { context.coordinator.navLeftByShiftTab() }
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -116,6 +122,21 @@ struct SelectAllTextField: UIViewRepresentable {
                 focus.onReport(focus.rowId, focus.field)
             }
         }
+        
+//        func navRightByTab() { nav.right?() }
+//        func navLeftByShiftTab() { nav.left?() }
+        func navRightByTab() {
+            parent.config.internalFocus.begin?()   // ✅ beginInternalFocusUpdate に繋がってる前提
+            nav.right?()
+            parent.config.internalFocus.end?()
+        }
+
+        func navLeftByShiftTab() {
+            parent.config.internalFocus.begin?()
+            nav.left?()
+            parent.config.internalFocus.end?()
+        }
+
 
         // NavigationDockDelegate
         func navDone()  { activeTextField?.resignFirstResponder(); nav.done?() }
@@ -142,4 +163,43 @@ struct SelectAllTextField: UIViewRepresentable {
             return false
         }
     }
+    
+    // MARK: - Tab Shift+Tab対応ロジック
+    private final class KeyCommandTextField: UITextField {
+        var onTab: (() -> Void)?
+        var onShiftTab: (() -> Void)?
+
+        override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+            if let key = presses.first?.key, key.keyCode == .keyboardTab {
+                if key.modifierFlags.contains(.shift) {
+                    onShiftTab?()
+                } else {
+                    onTab?()
+                }
+                return // ✅ ここで標準のフォーカス移動を“食う”
+            }
+            super.pressesBegan(presses, with: event)
+        }
+    }
+
+//    private final class KeyCommandTextField: UITextField {
+//        var onTab: (() -> Void)?
+//        var onShiftTab: (() -> Void)?
+//
+//        override var keyCommands: [UIKeyCommand]? {
+//            [
+//                UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(handleTab)),
+//                UIKeyCommand(input: "\t", modifierFlags: [.shift], action: #selector(handleShiftTab))
+//            ]
+//        }
+//
+//        @objc private func handleTab() {
+//            onTab?()
+//        }
+//
+//        @objc private func handleShiftTab() {
+//            onShiftTab?()
+//        }
+//    }
+
 }

@@ -45,8 +45,19 @@ final class FocusRouter: ObservableObject {
 
     /// UITextFieldDidBeginEditing から「実フォーカス」を報告する
     func reportFocused(rowId: UUID, field: FocusCoordinate.Field) {
-        guard !isInternalUpdate else { return }
+    #if DEBUG
+    DBLOG("🟪 reportFocused called row=\(rowId) field=\(field) internal=\(isInternalUpdate)")
+    #endif
+        guard !isInternalUpdate else {
+        #if DEBUG
+        DBLOG("🟪 reportFocused ignored (internal update)")
+        #endif
+            return
+        }
         current = .init(rowId: rowId, field: field)
+    #if DEBUG
+    DBLOG("🟪 reportFocused accepted -> current=\(rowId) \(field)")
+    #endif
     }
 
     // MARK: - Commands (Dock / Enter)
