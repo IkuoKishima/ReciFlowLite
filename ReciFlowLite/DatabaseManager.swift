@@ -11,13 +11,14 @@ final class DatabaseManager {
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "DatabaseManager") // 直列キュー
     private let queueKey = DispatchSpecificKey<Void>()
+    private let dbURL: URL //DBパスを保持（実行時復旧で必要）
+    private var isRecovering = false //実行時に致命エラーを検知したら、一旦「隔離中」フラグで暴走防止
+    private var didRecoverOnStartup = false
 
-    // ✅ DBパスを保持（実行時復旧で必要）
-    private let dbURL: URL
 
-    // ✅ 実行時に致命エラーを検知したら、一旦「隔離中」フラグで暴走防止
-    private var isRecovering = false
-
+    
+    // MARK: - 初期化
+    
     private init() {
         queue.setSpecific(key: queueKey, value: ()) //一番最初にコレをやる、移行下の処理
         let fm = FileManager.default
@@ -36,8 +37,10 @@ final class DatabaseManager {
         // create & migrate
         createTablesIfNeeded()
         migrateIfNeeded()
-        // 起動成功したら、バックアップも一度確保（任意だけどおすすめ）
-        backupDatabaseNow(tag: "startup_ok")
+        if didRecoverOnStartup {
+            restoreRecipesFromQuarantineIfPossible() //「隔離DBがあれば recipes を復元」
+        }
+        backupDatabaseNow(tag: "startup_ok") // 起動成功したら、バックアップも一度確保（任意だけどおすすめ）
     }
     
     private var isOnDBQueue: Bool {
@@ -74,28 +77,28 @@ final class DatabaseManager {
         if open(at: url) == false {
             DBLOG("⚠️ open failed (\(reason)) → quarantine & recreate")
             quarantineDatabaseFile(at: url, reason: "open_failed_\(reason)")
+            didRecoverOnStartup = true   // ✅ 追加
             guard open(at: url) else { return false }
         }
 
-        // open成功 → PRAGMA設定
         configureConnection()
 
-        // 健全性チェック（軽量）
         if quickCheckIsOK() { return true }
 
         DBLOG("⚠️ quick_check failed (\(reason)) → quarantine & recreate")
-
         close()
         quarantineDatabaseFile(at: url, reason: "quick_check_failed_\(reason)")
+        didRecoverOnStartup = true       // ✅ 追加
 
         guard open(at: url) else { return false }
         configureConnection()
 
         if quickCheckIsOK() { return true }
-
         DBLOG("❌ quick_check still failing after recreate")
         return false
     }
+    
+    
 
     private func open(at url: URL) -> Bool {
         var connection: OpaquePointer?
@@ -269,6 +272,276 @@ final class DatabaseManager {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyyMMdd_HHmmss"
         return f.string(from: Date())
+    }
+
+    // MARK: - Quarantine Restore (recipes only)　ここが復元処理一式
+
+    /// 起動時に、隔離DB（*_Corrupted_*）があれば recipes だけ復元する
+    /// - 注意: これは「新DBが開けていてテーブルが作られた後」に呼ぶ
+    private func restoreRecipesFromQuarantineIfPossible() {
+        guard db != nil else { return }
+        
+        // ✅ 追加：新DBが空でなければ復元しない（上書き防止）
+            if countRecipes() > 0 {
+                DBLOG("ℹ️ current db is not empty (recipes restore skipped)")
+                return
+            }
+        // 🔁 dbAsync → dbSync（起動時に間に合わせる）
+        dbSync { [weak self] in
+            guard let self else { return }
+            guard let candidate = self.findLatestQuarantineDBFile() else {
+                DBLOG("ℹ️ No quarantine db found (recipes restore skipped)")
+                return
+            }
+
+            DBLOG("🧩 Found quarantine db: \(candidate.lastPathComponent)")
+
+            guard let qdb = self.openReadOnlyDatabase(at: candidate) else {
+                DBLOG("⚠️ Failed to open quarantine db (read-only): \(candidate.lastPathComponent)")
+                return
+            }
+            defer { sqlite3_close(qdb) }
+
+            guard self.tableExists(db: qdb, tableName: "recipes") else {
+                DBLOG("⚠️ quarantine db has no recipes table (skip)")
+                self.markQuarantineFileAsProcessed(candidate, suffix: "NoRecipes")
+                return
+            }
+
+            let recovered = self.readRecipes(from: qdb)
+            
+            if recovered.isEmpty {
+                DBLOG("⚠️ No recipes recovered from quarantine db")
+                self.markQuarantineFileAsProcessed(candidate, suffix: "Empty")
+                return
+            }
+
+            let inserted = self.insertOrReplace(recipes: recovered)
+            if inserted > 0 {
+                DBLOG("✅ Restored recipes: \(inserted)/\(recovered.count)")
+                self.backupDatabaseNowLocked(tag: "restore_recipes_ok")
+                self.markQuarantineFileAsProcessed(candidate, suffix: "Recovered")
+            } else {
+                DBLOG("❌ Restore failed: inserted 0")
+            }
+        }
+    }
+    
+    private func countRecipes() -> Int {
+        dbSync {
+            guard let db else { return 0 }
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            if sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM recipes;", -1, &stmt, nil) != SQLITE_OK { return 0 }
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                return Int(sqlite3_column_int(stmt, 0))
+            }
+            return 0
+        }
+    }
+
+
+    /// Documents配下から *_Corrupted_* の最新っぽいものを1つ拾う（Recovered済みは除外）
+    private func findLatestQuarantineDBFile() -> URL? {
+        let folder = dbURL.deletingLastPathComponent()
+        let fm = FileManager.default
+
+        guard let files = try? fm.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        // 例: ReciFlowLite_Corrupted_yyyyMMdd_HHmmss_reason.sqlite
+        let candidates = files.filter { url in
+            let name = url.lastPathComponent
+            guard name.contains("_Corrupted_") else { return false }
+            // 既に処理済みのものは除外（Recovered/Empty/NoRecipesなど）
+            guard name.contains("_Recovered_") == false else { return false }
+            guard name.contains("_Empty_") == false else { return false }
+            guard name.contains("_NoRecipes_") == false else { return false }
+            // 拡張子ざっくり
+            return name.hasSuffix(".sqlite")
+        }
+
+        // 更新日時が新しい順で1つ
+        let sorted = candidates.sorted { a, b in
+            let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return da > db
+        }
+
+        return sorted.first
+    }
+
+    /// SQLite DB を read-only で開く（失敗したら nil）
+    private func openReadOnlyDatabase(at url: URL) -> OpaquePointer? {
+        var qdb: OpaquePointer?
+        // READONLYで開く（破損DBに対して書き込みを絶対しない）
+        let flags = SQLITE_OPEN_READONLY
+        let rc = sqlite3_open_v2(url.path, &qdb, flags, nil)
+
+        guard rc == SQLITE_OK, let qdb else {
+            if let qdb { sqlite3_close(qdb) }
+            return nil
+        }
+
+        // 読み取り専用なのでbusy_timeoutは短くてOK
+        sqlite3_busy_timeout(qdb, 500)
+        _ = sqlite3_extended_result_codes(qdb, 1)
+        return qdb
+    }
+
+    /// テーブル存在チェック（sqlite_master参照）
+    private func tableExists(db: OpaquePointer?, tableName: String) -> Bool {
+        guard let db else { return false }
+
+        let sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1;"
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        sqlite3_bind_text(stmt, 1, tableName, -1, SQLITE_TRANSIENT)
+
+        return sqlite3_step(stmt) == SQLITE_ROW
+    }
+    
+    private func columnExists(db: OpaquePointer?, tableName: String, columnName: String) -> Bool {
+        guard let db else { return false }
+        let sql = "PRAGMA table_info(\(tableName));"
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let cName = sqlite3_column_text(stmt, 1) {
+                if String(cString: cName) == columnName { return true }
+            }
+        }
+        return false
+    }
+    
+    /// quarantineDBから recipes を読む（deletedAtがあるなら「未削除だけ」読む）
+    private func readRecipes(from qdb: OpaquePointer?) -> [Recipe] {
+        guard let qdb else { return [] }
+
+        let hasDeletedAt = columnExists(db: qdb, tableName: "recipes", columnName: "deletedAt")
+
+        let sql: String
+        if hasDeletedAt {
+            // ✅ deletedAt IS NULL のみ復元（削除済みは復元しない）
+            sql = """
+            SELECT id, title, memo, createdAt, updatedAt
+            FROM recipes
+            WHERE deletedAt IS NULL
+            ORDER BY createdAt DESC;
+            """
+        } else {
+            // deletedAt列が無い古いDBなら従来通り全部読む（= 当時は削除概念が無い）
+            sql = """
+            SELECT id, title, memo, createdAt, updatedAt
+            FROM recipes
+            ORDER BY createdAt DESC;
+            """
+        }
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(qdb, sql, -1, &stmt, nil) == SQLITE_OK else {
+            let msg = String(cString: sqlite3_errmsg(qdb))
+            DBLOG("❌ readRecipes prepare failed: \(msg)")
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        var out: [Recipe] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard
+                let idC = sqlite3_column_text(stmt, 0),
+                let titleC = sqlite3_column_text(stmt, 1),
+                let memoC = sqlite3_column_text(stmt, 2)
+            else { continue }
+
+            let idStr = String(cString: idC)
+            guard let id = UUID(uuidString: idStr) else { continue }
+
+            let title = String(cString: titleC)
+            let memo = String(cString: memoC)
+            let createdAt = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 3))
+            let updatedAt = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
+
+            out.append(Recipe(id: id, title: title, memo: memo, createdAt: createdAt, updatedAt: updatedAt))
+        }
+        return out
+    }
+
+    /// 新DBへ recipes を INSERT OR REPLACE する（戻した件数を返す）
+    /// - 前提: DBキュー上で呼ばれる
+    private func insertOrReplace(recipes: [Recipe]) -> Int {
+        guard let db else { return 0 }
+
+        // 既存の insert は INSERT なので、復旧は OR REPLACE が安全
+        let sql = """
+        INSERT OR REPLACE INTO recipes (id, title, memo, createdAt, updatedAt, deletedAt)
+        VALUES (?, ?, ?, ?, ?, NULL);
+        """
+
+        var stmt: OpaquePointer?
+        let prc = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        guard prc == SQLITE_OK, let stmt else {
+            let msg = String(cString: sqlite3_errmsg(db))
+            DBLOG("❌ restore insert prepare failed: rc=\(prc) msg=\(msg)")
+            return 0
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        var count = 0
+
+        // トランザクションでまとめる（速い・安全）
+        _ = sqlite3_exec(db, "BEGIN IMMEDIATE;", nil, nil, nil)
+
+        for r in recipes {
+            sqlite3_reset(stmt)
+            sqlite3_clear_bindings(stmt)
+
+            sqlite3_bind_text(stmt, 1, r.id.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, r.title, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, r.memo, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_double(stmt, 4, r.createdAt.timeIntervalSince1970)
+            sqlite3_bind_double(stmt, 5, r.updatedAt.timeIntervalSince1970)
+
+            let rc = sqlite3_step(stmt)
+            if rc == SQLITE_DONE {
+                count += 1
+            } else {
+                let msg = String(cString: sqlite3_errmsg(db))
+                DBLOG("❌ restore insert step failed: rc=\(rc) msg=\(msg)")
+                // ここで続行するかは好み。最小版は続行でOK。
+            }
+        }
+
+        _ = sqlite3_exec(db, "COMMIT;", nil, nil, nil)
+        return count
+    }
+
+    /// quarantineファイルを “処理済み” としてリネーム（次回の再処理を防ぐ）
+    private func markQuarantineFileAsProcessed(_ url: URL, suffix: String) {
+        let fm = FileManager.default
+        let folder = url.deletingLastPathComponent()
+
+        let rawBase = url.deletingPathExtension().lastPathComponent
+        let base = rawBase.components(separatedBy: "_Corrupted_").first ?? rawBase
+
+        let ext = url.pathExtension.isEmpty ? "sqlite" : url.pathExtension
+        let ts = Self.timestampString()
+        let newName = "\(base)_\(suffix)_\(ts).\(ext)"
+        let dst = folder.appendingPathComponent(newName)
+
+        do {
+            try fm.moveItem(at: url, to: dst)
+            DBLOG("🧾 quarantine marked as \(suffix): \(dst.lastPathComponent)")
+        } catch {
+            DBLOG("⚠️ markQuarantineFileAsProcessed failed: \(error.localizedDescription)")
+        }
     }
 
 
@@ -522,50 +795,44 @@ final class DatabaseManager {
                 }
 
                 var pendingFatal: (context: String, rc: Int32)?
-
                 func markFatal(_ ctx: String, _ rc: Int32) {
                     if pendingFatal == nil, self.isFatalSQLiteError(db: db, rc: rc) {
                         pendingFatal = (ctx, rc)
                     }
                 }
 
-                let sql = """
-                INSERT INTO recipes (id, title, memo, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?);
-                """
+                var ok = false
 
-                var stmt: OpaquePointer?
-                let prc = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
-                if prc != SQLITE_OK {
-                    let msg = String(cString: sqlite3_errmsg(db))
-                    DBLOG("❌ insert prepare error: rc=\(prc) msg=\(msg)")
-                    markFatal("insert_prepare", prc)
-                    // finalize するものが無いのでそのまま終了
-                    if let fatal = pendingFatal {
-                        self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
+                // ✅ stmt の寿命をこの do スコープに閉じ込める
+                do {
+                    let sql = """
+                    INSERT INTO recipes (id, title, memo, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?);
+                    """
+
+                    var stmt: OpaquePointer?
+                    let prc = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+                    guard prc == SQLITE_OK, let stmt else {
+                        markFatal("insert_prepare", prc)
+                        continuation.resume(returning: false)
+                        return
                     }
-                    continuation.resume(returning: false)
-                    return
+                    defer { sqlite3_finalize(stmt) }
+
+                    DatabaseManager.bind(recipe: recipe, to: stmt)
+                    let src = sqlite3_step(stmt)
+
+                    if src == SQLITE_DONE {
+                        ok = true
+                        self.backupDatabaseNow(tag: "insert_recipe")
+                    } else {
+                        markFatal("insert_step", src)
+                    }
+
+                    continuation.resume(returning: ok)
                 }
 
-                defer { sqlite3_finalize(stmt) }
-
-                DatabaseManager.bind(recipe: recipe, to: stmt)
-
-                let src = sqlite3_step(stmt)
-                if src == SQLITE_DONE {
-                    DBLOG("✅ Inserted recipe: \(recipe.id)")
-                    self.backupDatabaseNow(tag: "insert_recipe")
-                    continuation.resume(returning: true)
-                    return
-                } else {
-                    let msg = String(cString: sqlite3_errmsg(db))
-                    DBLOG("❌ insert step error: rc=\(src) msg=\(msg)")
-                    markFatal("insert_step", src)
-                    continuation.resume(returning: false)
-                }
-
-                // ✅ defer(finalize) が走った “後” に復旧
+                // ✅ do を抜けたので finalize 済み。ここで復旧OK
                 if let fatal = pendingFatal {
                     self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
                 }
@@ -574,8 +841,9 @@ final class DatabaseManager {
     }
 
 
+
     func update(recipe: Recipe) {
-        guard let db = db else { return }
+        var pendingFatal: (context: String, rc: Int32)?
 
         let sql = """
         UPDATE recipes
@@ -583,7 +851,9 @@ final class DatabaseManager {
         WHERE id = ?;
         """
 
-        dbSync {
+        dbSync { [weak self] in
+            guard let self, let db = self.db else { return }
+
             var statement: OpaquePointer?
             defer { sqlite3_finalize(statement) }
 
@@ -595,24 +865,21 @@ final class DatabaseManager {
                 sqlite3_bind_text(statement, 4, recipe.id.uuidString, -1, SQLITE_TRANSIENT)
 
                 let src = sqlite3_step(statement)
-                if src == SQLITE_DONE {
-                    DBLOG("✅ Updated recipe: \(recipe.id)")
-                } else {
-                    let errorMsg = String(cString: sqlite3_errmsg(db))
-                    DBLOG("❌ update step error: rc=\(src) msg=\(errorMsg)")
-                    if isFatalSQLiteError(db: db, rc: src) {
-                        handleFatalDatabaseErrorLocked(context: "update_step", rc: src)
-                    }
+                if src != SQLITE_DONE, self.isFatalSQLiteError(db: db, rc: src) {
+                    pendingFatal = ("update_step", src)
                 }
-            } else {
-                let errorMsg = String(cString: sqlite3_errmsg(db))
-                DBLOG("❌ update prepare error: rc=\(prc) msg=\(errorMsg)")
-                if isFatalSQLiteError(db: db, rc: prc) {
-                    handleFatalDatabaseErrorLocked(context: "update_prepare", rc: prc)
-                }
+            } else if self.isFatalSQLiteError(db: db, rc: prc) {
+                pendingFatal = ("update_prepare", prc)
+            }
+        }
+
+        if let fatal = pendingFatal {
+            queue.async { [weak self] in
+                self?.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
             }
         }
     }
+
 
 
 
