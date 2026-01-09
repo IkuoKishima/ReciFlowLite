@@ -106,17 +106,20 @@ final class IngredientEngineStore: ObservableObject {
     }
     
     func saveNow(force: Bool = false) -> Bool {
-        if !force, !isDirty { return false } // 「変更がないなら保存しない」＝もたつき軽減
+        if !force, !isDirty { return false }
 
-        DatabaseManager.shared.createIngredientTablesIfNeeded()
-        DatabaseManager.shared.replaceIngredientRows(recipeId: parentRecipeId, rows: rows)
+        let snapshot = rows  // ✅ その時点の rows を固定して渡す（競合を減らす）
+
+        DatabaseManager.shared.queueAsyncWrite {   // ← 下に追加するヘルパ
+            DatabaseManager.shared.createIngredientTablesIfNeeded()
+            DatabaseManager.shared.replaceIngredientRows(recipeId: self.parentRecipeId, rows: snapshot)
+        }
 
         isDirty = false
-
-DBLOG("✅ saved \(rows.count) rows (force=\(force))")
-
+        DBLOG("✅ saved \(snapshot.count) rows (force=\(force))")
         return true
     }
+
     
 
 

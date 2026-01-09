@@ -10,6 +10,7 @@ final class DatabaseManager {
 
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "DatabaseManager") // 直列キュー
+    private let queueKey = DispatchSpecificKey<Void>()
 
     // ✅ DBパスを保持（実行時復旧で必要）
     private let dbURL: URL
@@ -18,6 +19,7 @@ final class DatabaseManager {
     private var isRecovering = false
 
     private init() {
+        queue.setSpecific(key: queueKey, value: ()) //一番最初にコレをやる、移行下の処理
         let fm = FileManager.default
         let urls = fm.urls(for: .documentDirectory, in: .userDomainMask)
         self.dbURL = urls[0].appendingPathComponent("ReciFlowLite.sqlite")
@@ -34,14 +36,22 @@ final class DatabaseManager {
         // create & migrate
         createTablesIfNeeded()
         migrateIfNeeded()
-
         // 起動成功したら、バックアップも一度確保（任意だけどおすすめ）
         backupDatabaseNow(tag: "startup_ok")
     }
+    
+    private var isOnDBQueue: Bool {
+        DispatchQueue.getSpecific(key: queueKey) != nil
+    }
 
-//    deinit {
-//        close()
-//    }
+    private func dbSync<T>(_ work: () -> T) -> T {
+        if isOnDBQueue { return work() }
+        return queue.sync(execute: work)
+    }
+
+    private func dbAsync(_ work: @escaping () -> Void) {
+        queue.async(execute: work)
+    }
 
     private func closeLocked() {
         if let db = db {
@@ -51,10 +61,9 @@ final class DatabaseManager {
     }
 
     private func close() {
-        queue.sync {
-            closeLocked()
-        }
+        dbSync { closeLocked() }
     }
+
 
 
 
@@ -131,7 +140,7 @@ final class DatabaseManager {
     private func quickCheckIsOK() -> Bool {
         guard let db else { return false }
 
-        return queue.sync {
+        return dbSync {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
 
@@ -161,22 +170,6 @@ final class DatabaseManager {
     }
 
     // MARK: - Runtime Fatal Error Handling
-
-    /// ✅ 致命エラー判定（環境差が出る extended 定数は使わない）
-//    private func isFatalSQLiteCode(_ rc: Int32) -> Bool {
-//        let primary = rc & 0xFF  // 下位8bitが “親コード” になる
-//
-//        switch primary {
-//        case SQLITE_CORRUPT, SQLITE_NOTADB:
-//            return true
-//        case SQLITE_IOERR:
-//            return true
-//        case SQLITE_FULL:
-//            return true
-//        default:
-//            return false
-//        }
-//    }
     
     /// ✅ db から拡張errcodeを取り、それで致命判定する（rcより正確）
     private func isFatalSQLiteError(db: OpaquePointer?, rc: Int32) -> Bool {
@@ -202,32 +195,29 @@ final class DatabaseManager {
         isRecovering = true
         defer { isRecovering = false }
 
-        // まず msg を作る（先に使うから）
         let msg = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-
-        // 拡張errcode（dbがあれば拾う。なければ rc で代用）
         let ext = db.map { sqlite3_extended_errcode($0) } ?? rc
 
-        // ログは1回で十分（重複を消す）
         DBLOG("🧨 FATAL DB error: rc=\(rc) ext=\(ext) ctx=\(context) msg=\(msg)")
         DBLOG("🧯 quarantine & recreate (runtime)")
 
-        // close → quarantine → 新規open → create/migrate
         closeLocked()
-//        close()
         quarantineDatabaseFile(at: dbURL, reason: "runtime_\(context)_rc\(rc)")
 
-        // 新規DBとして復旧
         if open(at: dbURL) {
             configureConnection()
-            createTablesIfNeeded()
-            migrateIfNeeded()
-            backupDatabaseNow(tag: "runtime_recovered")
+
+            // ✅ ここが重要：syncを含む関数は呼ばない
+            createTablesIfNeededLocked()
+            ensureRecipesDeletedAtColumnLocked()
+
+            backupDatabaseNowLocked(tag: "runtime_recovered")
             DBLOG("✅ runtime recovery completed")
         } else {
             DBLOG("❌ runtime recovery failed to open new db")
         }
     }
+
 
     /// 壊れたDBを退避（同名を潰さないようタイムスタンプ付き）
     private func quarantineDatabaseFile(at url: URL, reason: String) {
@@ -321,7 +311,7 @@ final class DatabaseManager {
     private func ensureRecipesDeletedAtColumn() {
         guard let db = db else { return }
 
-        queue.sync {
+        dbSync {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
 
@@ -341,48 +331,157 @@ final class DatabaseManager {
             guard !hasDeletedAt else { return }
 
             var err: UnsafeMutablePointer<Int8>?
-            if sqlite3_exec(db, "ALTER TABLE recipes ADD COLUMN deletedAt REAL;", nil, nil, &err) == SQLITE_OK {
+            let rc = sqlite3_exec(db, "ALTER TABLE recipes ADD COLUMN deletedAt REAL;", nil, nil, &err)
+
+            if rc == SQLITE_OK {
                 DBLOG("✅ ALTER TABLE recipes ADD COLUMN deletedAt")
             } else {
-                let msg = err.map { String(cString: $0) } ?? "unknown"
-                DBLOG("❌ ALTER TABLE failed: \(msg)")
-                sqlite3_free(err)
+                let msg = err.map { String(cString: $0) } ?? String(cString: sqlite3_errmsg(db))
+                DBLOG("❌ ALTER TABLE failed: rc=\(rc) msg=\(msg)")
             }
+            if let err { sqlite3_free(err) }
         }
     }
+
+    
+    // MARK: - Locked helpers (⚠️ queue の中から呼ぶ用：syncしない)
+
+    private func createTablesIfNeededLocked() {
+        guard let db else { return }
+
+        let sql = """
+        CREATE TABLE IF NOT EXISTS recipes (
+            id Text PRIMARY KEY,
+            title TEXT NOT NULL,
+            memo TEXT NOT NULL,
+            createdAt REAL NOT NULL,
+            updatedAt REAL NOT NULL,
+            deletedAt REAL
+        );
+        """
+        _ = sqlite3_exec(db, sql, nil, nil, nil)
+
+        // ingredientもここで作る（createIngredientTablesIfNeeded() は sync を含むので呼ばない）
+        let ing = """
+        CREATE TABLE IF NOT EXISTS ingredient_rows (
+            id TEXT PRIMARY KEY,
+            recipeId TEXT NOT NULL,
+            kind INTEGER NOT NULL,
+            orderIndex INTEGER NOT NULL,
+            blockId TEXT,
+            title TEXT,
+            name TEXT,
+            amount TEXT,
+            unit TEXT
+        );
+        """
+        _ = sqlite3_exec(db, ing, nil, nil, nil)
+    }
+
+    private func ensureRecipesDeletedAtColumnLocked() {
+        guard let db else { return }
+
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+
+        if sqlite3_prepare_v2(db, "PRAGMA table_info(recipes);", -1, &stmt, nil) != SQLITE_OK {
+            DBLOG("❌ PRAGMA table_info(recipes) failed")
+            return
+        }
+
+        var hasDeletedAt = false
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let cName = sqlite3_column_text(stmt, 1) {
+                if String(cString: cName) == "deletedAt" { hasDeletedAt = true; break }
+            }
+        }
+        guard !hasDeletedAt else { return }
+
+        var err: UnsafeMutablePointer<Int8>?
+        let rc = sqlite3_exec(db, "ALTER TABLE recipes ADD COLUMN deletedAt REAL;", nil, nil, &err)
+        if rc == SQLITE_OK {
+            DBLOG("✅ ALTER TABLE recipes ADD COLUMN deletedAt")
+        } else {
+            let msg = err.map { String(cString: $0) } ?? String(cString: sqlite3_errmsg(db))
+            DBLOG("❌ ALTER TABLE failed: rc=\(rc) msg=\(msg)")
+        }
+        if let err { sqlite3_free(err) }
+    }
+
+    private func backupDatabaseNowLocked(tag: String) {
+        guard let db else { return }
+
+        _ = sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+        rotateBackups()
+
+        var dst: OpaquePointer?
+        let openRC = sqlite3_open(backupURL1.path, &dst)
+        guard openRC == SQLITE_OK, let dst else {
+            DBLOG("❌ backup open failed rc=\(openRC)")
+            if let dst { sqlite3_close(dst) }
+            return
+        }
+        defer { sqlite3_close(dst) }
+
+        guard let b = sqlite3_backup_init(dst, "main", db, "main") else {
+            DBLOG("❌ sqlite3_backup_init failed: \(String(cString: sqlite3_errmsg(dst)))")
+            return
+        }
+
+        let stepRC = sqlite3_backup_step(b, -1)
+        let finishRC = sqlite3_backup_finish(b)
+
+        if stepRC == SQLITE_DONE && finishRC == SQLITE_OK {
+            DBLOG("💾 Backup OK (\(tag)) → \(backupURL1.lastPathComponent)")
+        } else {
+            DBLOG("❌ Backup failed tag=\(tag) stepRC=\(stepRC) finishRC=\(finishRC)")
+        }
+    }
+
 
     // MARK: - Internal SQL helper (fatal-safe)
 
     private func execute(sql: String, context: String = "exec") {
         guard let db else { return }
 
-        queue.sync {
+        var pendingFatal: (context: String, rc: Int32)?
+
+        dbSync { [weak self] in
+            guard let self, let db = self.db else { return }
             var errMsg: UnsafeMutablePointer<Int8>?
             let rc = sqlite3_exec(db, sql, nil, nil, &errMsg)
 
-            if rc == SQLITE_OK {
-                return
-            }
+            if rc == SQLITE_OK { return }
 
             let msg = errMsg.map { String(cString: $0) } ?? String(cString: sqlite3_errmsg(db))
             if let errMsg { sqlite3_free(errMsg) }
-
             DBLOG("❌ SQL exec error: rc=\(rc) ctx=\(context) msg=\(msg)")
 
-            if isFatalSQLiteError(db: db, rc: rc) {
-                handleFatalDatabaseErrorLocked(context: context, rc: rc)
+            if self.isFatalSQLiteError(db: db, rc: rc) {
+                pendingFatal = (context, rc)
+            }
+        }
+
+        if let fatal = pendingFatal {
+            queue.async { [weak self] in
+                guard let self else { return }
+                self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
             }
         }
     }
 
 
+
     // MARK: - Public API (Recipes)
 
     func fetchAllRecipes() async -> [Recipe] {
-        guard let db = db else { return [] }
-
         return await withCheckedContinuation { continuation in
-            queue.async {
+            queue.async { [weak self] in
+                guard let self, let db = self.db else {
+                    continuation.resume(returning: [])
+                    return
+                }
+
                 var result: [Recipe] = []
 
                 let sql = """
@@ -411,6 +510,7 @@ final class DatabaseManager {
         }
     }
 
+
     func insert(recipe: Recipe) async -> Bool {
         guard db != nil else { return false }
 
@@ -419,6 +519,14 @@ final class DatabaseManager {
                 guard let self, let db = self.db else {
                     continuation.resume(returning: false)
                     return
+                }
+
+                var pendingFatal: (context: String, rc: Int32)?
+
+                func markFatal(_ ctx: String, _ rc: Int32) {
+                    if pendingFatal == nil, self.isFatalSQLiteError(db: db, rc: rc) {
+                        pendingFatal = (ctx, rc)
+                    }
                 }
 
                 let sql = """
@@ -431,8 +539,10 @@ final class DatabaseManager {
                 if prc != SQLITE_OK {
                     let msg = String(cString: sqlite3_errmsg(db))
                     DBLOG("❌ insert prepare error: rc=\(prc) msg=\(msg)")
-                    if self.isFatalSQLiteError(db: db, rc: prc) {
-                        self.handleFatalDatabaseErrorLocked(context: "insert_prepare", rc: prc)
+                    markFatal("insert_prepare", prc)
+                    // finalize するものが無いのでそのまま終了
+                    if let fatal = pendingFatal {
+                        self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
                     }
                     continuation.resume(returning: false)
                     return
@@ -445,20 +555,24 @@ final class DatabaseManager {
                 let src = sqlite3_step(stmt)
                 if src == SQLITE_DONE {
                     DBLOG("✅ Inserted recipe: \(recipe.id)")
-                    // ✅ 書き込み成功 → バックアップ更新
                     self.backupDatabaseNow(tag: "insert_recipe")
                     continuation.resume(returning: true)
+                    return
                 } else {
                     let msg = String(cString: sqlite3_errmsg(db))
                     DBLOG("❌ insert step error: rc=\(src) msg=\(msg)")
-                    if self.isFatalSQLiteError(db: db, rc: src) {
-                        self.handleFatalDatabaseErrorLocked(context: "insert_step", rc: src)
-                    }
+                    markFatal("insert_step", src)
                     continuation.resume(returning: false)
+                }
+
+                // ✅ defer(finalize) が走った “後” に復旧
+                if let fatal = pendingFatal {
+                    self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
                 }
             }
         }
     }
+
 
     func update(recipe: Recipe) {
         guard let db = db else { return }
@@ -469,7 +583,7 @@ final class DatabaseManager {
         WHERE id = ?;
         """
 
-        queue.sync {
+        dbSync {
             var statement: OpaquePointer?
             defer { sqlite3_finalize(statement) }
 
@@ -483,8 +597,6 @@ final class DatabaseManager {
                 let src = sqlite3_step(statement)
                 if src == SQLITE_DONE {
                     DBLOG("✅ Updated recipe: \(recipe.id)")
-                    // 任意：更新でもバックアップを取りたいなら
-                    // self.backupDatabaseNow(tag: "update_recipe")
                 } else {
                     let errorMsg = String(cString: sqlite3_errmsg(db))
                     DBLOG("❌ update step error: rc=\(src) msg=\(errorMsg)")
@@ -503,6 +615,7 @@ final class DatabaseManager {
     }
 
 
+
     func softDelete(recipeID: UUID) {
         guard let db = db else { return }
 
@@ -514,8 +627,10 @@ final class DatabaseManager {
 
         let now = Date().timeIntervalSince1970
 
-        queue.sync {
+        dbSync {
             var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 sqlite3_bind_double(statement, 1, now)
                 sqlite3_bind_double(statement, 2, now)
@@ -525,10 +640,14 @@ final class DatabaseManager {
                     DBLOG("🗑 Soft deleted recipe: \(recipeID)")
                 } else {
                     let errorMsg = String(cString: sqlite3_errmsg(db))
-                    DBLOG("❌ softDelete error: \(errorMsg)")
+                    DBLOG("❌ softDelete step error: \(errorMsg)")
+                    // 任意：致命判定したいならここで呼ぶ
+                    // if isFatalSQLiteError(db: db, rc: sqlite3_errcode(db)) { handleFatalDatabaseErrorLocked(...) }
                 }
+            } else {
+                let errorMsg = String(cString: sqlite3_errmsg(db))
+                DBLOG("❌ softDelete prepare error: \(errorMsg)")
             }
-            sqlite3_finalize(statement)
         }
     }
 
@@ -543,8 +662,10 @@ final class DatabaseManager {
 
         let now = Date().timeIntervalSince1970
 
-        queue.sync {
+        dbSync {
             var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 sqlite3_bind_double(statement, 1, now)
                 sqlite3_bind_text(statement, 2, recipeID.uuidString, -1, SQLITE_TRANSIENT)
@@ -553,12 +674,15 @@ final class DatabaseManager {
                     DBLOG("♻️ Restored recipe: \(recipeID)")
                 } else {
                     let errorMsg = String(cString: sqlite3_errmsg(db))
-                    DBLOG("❌ restore error: \(errorMsg)")
+                    DBLOG("❌ restore step error: \(errorMsg)")
                 }
+            } else {
+                let errorMsg = String(cString: sqlite3_errmsg(db))
+                DBLOG("❌ restore prepare error: \(errorMsg)")
             }
-            sqlite3_finalize(statement)
         }
     }
+
 
     private static func readRecipeRow(statement: OpaquePointer?) -> Recipe? {
         guard let stmt = statement else { return nil }
@@ -609,7 +733,7 @@ final class DatabaseManager {
     private func backupDatabaseNow(tag: String) {
         guard let db else { return }
 
-        queue.sync {
+        dbSync {
             // WALを使っているので、バックアップ前に軽くチェックポイント（任意）
             _ = sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
 
@@ -659,6 +783,16 @@ final class DatabaseManager {
     }
 }
 
+extension DatabaseManager {
+    // saveNow を DB queue に投げたものを受け取る
+    func queueAsyncWrite(_ job: @escaping () -> Void) {
+        queue.async(execute: job)
+    }
+}
+
+
+
+
 // MARK: - Ingredient tables
 
 extension DatabaseManager {
@@ -686,7 +820,7 @@ extension DatabaseManager {
         );
         """
 
-        queue.sync {
+        dbSync {
             var statement: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
                 defer { sqlite3_finalize(statement) }
@@ -701,13 +835,15 @@ extension DatabaseManager {
         }
     }
 
+
     func replaceIngredientRows(recipeId: UUID, rows: [IngredientRow]) {
         guard db != nil else { return }
 
-        // ✅ fatal を検知したら、queue.sync の外で復旧を走らせる（defer事故を避ける）
+        // fatal を検知したら「外側」で復旧を走らせる
         var pendingFatal: (context: String, rc: Int32)?
 
-        queue.sync { [weak self] in
+        // ✅ 1) DB操作は dbSync で統一（= 入口統一）
+        dbSync { [weak self] in
             guard let self, let db = self.db else { return }
 
             func markFatalIfNeeded(_ context: String, _ rc: Int32) {
@@ -862,14 +998,15 @@ extension DatabaseManager {
             }
         }
 
-        // ✅ sync の外で復旧を実行（トランザクションdefer事故を避ける）
+        // ✅ 2) “外側”で復旧：dbSync で包まない / syncしない（defer事故の回避が完成）
         if let fatal = pendingFatal {
-            queue.sync { [weak self] in
+            queue.async { [weak self] in
                 guard let self else { return }
                 self.handleFatalDatabaseErrorLocked(context: fatal.context, rc: fatal.rc)
             }
         }
     }
+
 
 
     func fetchIngredientRows(recipeId: UUID) async -> [IngredientRow] {
