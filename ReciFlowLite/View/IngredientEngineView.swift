@@ -348,51 +348,18 @@ struct IngredientEngineView: View {
                     .padding(.trailing, rightRailWidth + rightRailGap)
                     //                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
                     
+                    // ビューが現れた瞬間を監視するトリガー
                     .onAppear {
                         store.loadIfNeeded()
                         router.rebuild(rows: store.rows)
-
-                        guard !didRequestInitialFocus else { return }
-                        didRequestInitialFocus = true
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            guard !store.rows.isEmpty else { return }
-                            router.rebuild(rows: store.rows) // 念のため最新に
-                            router.focusFirstIfNeeded()
-                        }
                     }
-                    
-
 
                     .onChange(of: store.rowsRevision) { _ in
                         router.rebuild(rows: store.rows)
-
-                        // ✅ rows が揃ったタイミングで初回だけ初期フォーカス
-                        guard !didRequestInitialFocus else { return }
-                        didRequestInitialFocus = true
-
-                        DispatchQueue.main.async {
-                            router.focusFirstIfNeeded()
-                        }
                     }
-                    .onDisappear {
-                        dismissKeyboard()
-                        router.clear()
 
-                        let didSave = store.saveNow(force: true)
-                        if didSave {
-                            recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
-                        }
-                    }
                     
-                    .onChange(of: scenePhase) { phase in
-                        if phase == .background {
-                            let didSave = store.saveNow(force: true)
-                            if didSave {
-                                recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
-                            }
-                        }
-                    }
+                    // フォーカスの実態を監視しRouter → ScrollView の橋渡し
                     .onChange(of: router.current) { newValue in
                         guard let c = newValue else { return }
                         //rowId が今の rows に存在するときだけ scroll
@@ -403,6 +370,28 @@ struct IngredientEngineView: View {
                             }
                         }
                     }
+                    
+                    // アプリライフサイクルを監視し落ちる前に絶対保存するトリガー
+                    .onChange(of: scenePhase) { phase in
+                        if phase == .background {
+                            let didSave = store.saveNow(force: true)
+                            if didSave {
+                                recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
+                            }
+                        }
+                    }
+                    // ビューが消える瞬間を監視するトリガー
+                    .onDisappear {
+                        dismissKeyboard()
+                        router.clear()
+
+                        let didSave = store.saveNow(force: true)
+                        if didSave {
+                            recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
+                        }
+                    }
+
+
 
                 }
                 //            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
