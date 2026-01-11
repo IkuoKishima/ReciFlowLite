@@ -95,7 +95,9 @@ struct IngredientEngineView: View {
 
         case .addSingle:
             let inserted = store.addSingle(after: store.indexOfRow(id: router.current?.rowId))
+            
             router.rebuild(rows: store.rows)
+            
             if case .single(let it) = store.rows[inserted] {
                 router.set(.init(rowId: it.id, field: .name))
             }
@@ -608,6 +610,12 @@ struct IngredientEngineView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isDeleteMode else { return }
+            // ✅ ここで必ず“長押し状態”を落とす（割り込み保険）
+            isNavRepeating = false
+            repeatScrollWorkItem?.cancel()
+            repeatScrollWorkItem = nil
+            lastRepeatScrollAt = 0
+            pendingScrollRowId = nil
 
             // ✅ まず「フォーカス可能なID」を確定（headerをタップしても、実フォーカス先に寄せる）
             let rid = focusableRowIdForTap(row: row, index: index) ?? row.id
@@ -660,6 +668,7 @@ struct IngredientEngineView: View {
 
             repeatBegan: { _ in
                 isNavRepeating = true
+                // ついでに安全：直前予約掃除
                 repeatScrollWorkItem?.cancel()
                 repeatScrollWorkItem = nil
                 lastRepeatScrollAt = 0
@@ -774,15 +783,15 @@ struct IngredientEngineView: View {
                     store: store,
                     block: block,
                     onInserted: { inserted in
-                        if store.rows.indices.contains(inserted) {
-                            let newId = store.rows[inserted].id
-                            selectedRowId = newId
-                            store.userDidSelectRow(newId)
+                        guard store.rows.indices.contains(inserted) else { return }
 
-                            // ついでに：追加後フォーカスもここで確定（前回の問題3）
-                            router.rebuild(rows: store.rows)
-                            router.set(.init(rowId: newId, field: .name))
-                        }
+                        let newId = store.rows[inserted].id
+                        selectedRowId = newId
+                        store.userDidSelectRow(newId)
+
+                        // ✅ 追加：レール更新 → フォーカス指示（1本道）
+                        router.rebuild(rows: store.rows)
+                        router.set(.init(rowId: newId, field: .name))
                     },
                     router: router,
                     perform: perform,

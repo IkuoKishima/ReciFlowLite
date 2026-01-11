@@ -70,9 +70,7 @@ final class IngredientEngineStore: ObservableObject {
             markDirtyAndScheduleSave(reason: "updateBlockTitle")
         }
     }
-
     
-
     // 変更が起きたら呼ぶ（＝保存予約）
     func markDirtyAndScheduleSave(reason: String = "") {
         isDirty = true
@@ -91,6 +89,50 @@ final class IngredientEngineStore: ObservableObject {
 
     }
   
+    
+    // MARK: - blockId の「ブロック範囲の末尾 index」を返す（末尾blockItem、なければheader自身）
+    
+    private func endIndexOfBlock(blockId: UUID) -> Int? {
+        guard let headerIndex = rows.firstIndex(where: {
+            if case .blockHeader(let b) = $0 { return b.id == blockId }
+            return false
+        }) else { return nil }
+
+        var last = headerIndex
+        var i = headerIndex + 1
+        while i < rows.count {
+            switch rows[i] {
+            case .blockItem(let it) where it.parentBlockId == blockId:
+                last = i
+            case .blockItem:
+                // 別ブロックの item に入ったら終了（通常はここに来ないが保険）
+                return last
+            case .blockHeader, .single:
+                // ブロックが途切れた
+                return last
+            }
+            i += 1
+        }
+        return last
+    }
+
+    // rowId が「どのブロックに属しているか」を返す（headerなら自分、blockItemならparentBlockId）
+    private func blockIdContainingRow(rowId: UUID?) -> UUID? {
+        guard let rowId else { return nil }
+        guard let idx = indexOfRow(id: rowId) else { return nil }
+
+        switch rows[idx] {
+        case .blockHeader(let b):
+            return b.id
+        case .blockItem(let it):
+            return it.parentBlockId
+        case .single:
+            return nil
+        }
+    }
+
+
+    
     
     // MARK: - 🟨 保存（既存を少しだけ改造）
     
@@ -379,7 +421,14 @@ extension IngredientEngineStore {
     /// - Returns: 挿入された rows index（フォーカス合わせに使える）
     @discardableResult
     func addSingle(after index: Int?) -> Int {
-        let insertAt = insertionIndex(after: index)
+        // ✅ ここがキモ：ブロック内なら「ユニット末尾の次」に矯正
+        let insertAt: Int
+        if let index, rows.indices.contains(index) {
+            let range = unitRange(at: index)
+            insertAt = range.upperBound
+        } else {
+            insertAt = rows.count
+        }
 
         let newItem = IngredientItem(
             id: UUID(),
@@ -391,15 +440,14 @@ extension IngredientEngineStore {
             unit: ""
         )
 
-        rows.insert(.single(newItem), at: insertAt)
+        rows.insert(.single(newItem), at: min(insertAt, rows.count))
         pendingFocusItemId = newItem.id
-
         didMutateRows(reason: "addSingle")
-        
-        DBLOG("✅ addSingle insertAt=\(insertAt) rows=\(rows.count)")
 
-        return insertAt
+        DBLOG("✅ addSingle(safe) insertAt=\(insertAt) rows=\(rows.count)")
+        return min(insertAt, rows.count - 1)
     }
+
 
     /// 2x2：Liteは「headerのみ追加」で固定（⚠️初期item同時生成は事故るため⚠️）
     /// - Returns: 初期 blockItem の rows index（フォーカス合わせに使える）
