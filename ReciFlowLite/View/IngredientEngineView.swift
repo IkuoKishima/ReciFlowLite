@@ -314,6 +314,20 @@ struct IngredientEngineView: View {
         )
     }
 
+    // MARK: - ──── UITextField が「破棄されない」ようLazyを使わない構造にする ──── //
+    @ViewBuilder
+    private var rowsBody: some View {
+        let indexedRows = Array(store.rows.enumerated())
+
+        ForEach(indexedRows, id: \.element.id) { index, row in
+            rowWithControls(for: row, at: index)
+                .id(row.id)                      // ✅ scrollTo(c.rowId) と一致してるならOK
+                .padding(.horizontal, 8)       //⚠️画面端からの距離
+                .frame(height: rowHeight(for: row))
+//                                    .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+        }
+        .animation(.snappy, value: isDeleteMode) // ← これは ForEach に掛ける位置でOK
+    }
 
 
     // MARK: - ===== 🟨　表示ページ本体はここから　🟨　=====　//
@@ -322,36 +336,61 @@ struct IngredientEngineView: View {
         ZStack(alignment: .bottomTrailing) {
             // ===== スクロール本体 =====
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
-                        
-                        
-                        //EngineStoreを参照して表示するから、engineStore.rows)
-                        let indexedRows = Array(store.rows.enumerated())
-                        
-                        ForEach(indexedRows, id: \.element.id) { index, row in
-                            rowWithControls(for: row, at: index)
-                                .id(row.id) // ← row.rowId ではなく「その行の本体ID」に統一
-                                .padding(.horizontal, 8) //⚠️画面端からの距離
-                                .frame(height: rowHeight(for: row))//ヘッダ高連携
-                            //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Group {
+                            if router.current != nil {
+                                // ✅ フォーカス中は非Lazy（firstResponder が落ちにくい）
+                                VStack(alignment: .leading, spacing: 2) {
+                                    rowsBody
+                                }
+                            } else {
+                                // ✅ 通常は Lazy
+                                LazyVStack(alignment: .leading, spacing: 2) {
+                                    rowsBody
+                                }
+                            }
                         }
-                        
-                        
-                        
-                        
-                        .animation(.snappy, value: isDeleteMode)
-                        Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
+
+                        Spacer(minLength: 120)
                     }
-                    
+                    .scrollDismissesKeyboard(.never)  // ✅ ①ここ
                     .padding(.trailing, rightRailWidth + rightRailGap)
-                    //                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
-                    
-                    // ビューが現れた瞬間を監視するトリガー
                     .onAppear {
                         store.loadIfNeeded()
                         router.rebuild(rows: store.rows)
                     }
+
+//                ScrollView {
+//                    LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
+//                        
+//                        
+//                        //EngineStoreを参照して表示するから、engineStore.rows)
+//                        let indexedRows = Array(store.rows.enumerated())
+//                        
+//                        ForEach(indexedRows, id: \.element.id) { index, row in
+//                            rowWithControls(for: row, at: index)
+//                                .id(row.id) // ← row.rowId ではなく「その行の本体ID」に統一
+//                                .padding(.horizontal, 8) //⚠️画面端からの距離
+//                                .frame(height: rowHeight(for: row))//ヘッダ高連携
+//                            //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
+//                        }
+//                        
+//                        
+//                        
+//                        
+//                        .animation(.snappy, value: isDeleteMode)
+//                        Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
+//                    }
+//                    
+//                    .padding(.trailing, rightRailWidth + rightRailGap)
+//                    //                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
+//                    
+//                    // ビューが現れた瞬間を監視するトリガー
+//                    .onAppear {
+//                        store.loadIfNeeded()
+//                        router.rebuild(rows: store.rows)
+//                    }
 
                     .onChange(of: store.rowsRevision) { _ in
                         router.rebuild(rows: store.rows)
@@ -389,7 +428,7 @@ struct IngredientEngineView: View {
 
                         } else {
                             // ✅ 通常：アニメで気持ちよく追尾
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                            DispatchQueue.main.async {
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     proxy.scrollTo(c.rowId, anchor: .center)
                                 }
