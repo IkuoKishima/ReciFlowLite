@@ -25,6 +25,8 @@ struct SelectAllTextField: UIViewRepresentable {
             var down: (() -> Void)?
             var left: (() -> Void)?
             var right: (() -> Void)?
+            var repeatBegan: ((String) -> Void)?
+            var repeatEnded: (() -> Void)?
         }
 
         var onDidBecomeFirstResponder: (() -> Void)?
@@ -144,11 +146,10 @@ struct SelectAllTextField: UIViewRepresentable {
         func navDown()  { nav.down?() }
         func navLeft()  { nav.left?() }
         func navRight() { nav.right?() }
+        // ⚠️通知だけでRouterを触らない事！
+        func navRepeatBegan(direction: String) { nav.repeatBegan?(direction) }
+        func navRepeatEnded() { nav.repeatEnded?() }
 
-        // ✅ 長押し開始/終了通知も“何もしない”
-        // （Routerの begin/end をここで触ると分散するので禁止）
-        func navRepeatBegan(direction: String) { }
-        func navRepeatEnded() { }
 
         @objc func editChanged(_ sender: UITextField) {
             parent.text = sender.text ?? ""

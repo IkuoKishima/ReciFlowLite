@@ -19,6 +19,13 @@ struct IngredientEngineView: View {
     private enum Field { case name, amount, unit }
     @StateObject private var router = FocusRouter()
     @State private var didRequestInitialFocus = false
+    
+    @State private var isNavRepeating = false
+    @State private var pendingScrollRowId: UUID? = nil   // 長押し終了時に1回だけ追従
+    @State private var lastRepeatScrollAt: CFTimeInterval = 0
+    @State private var repeatScrollWorkItem: DispatchWorkItem? = nil
+
+
 
 
 
@@ -65,16 +72,6 @@ struct IngredientEngineView: View {
 
     
     // MARK: - ────　縦横アクセサリ部品はここの集約　 ─────　//
-//    private enum EngineCommand {
-//        case dismissKeyboard
-//        case moveUp
-//        case moveDown
-//        case moveLeft
-//        case moveRight
-//        case enterNext          // Return/Enter
-//        case addSingle
-//        case addBlock
-//    }
 
     private func perform(_ cmd: EngineCommand) {
         switch cmd {
@@ -362,14 +359,65 @@ struct IngredientEngineView: View {
                     // フォーカスの実態を監視しRouter → ScrollView の橋渡し
                     .onChange(of: router.current) { newValue in
                         guard let c = newValue else { return }
-                        //rowId が今の rows に存在するときだけ scroll
                         guard store.indexOfRow(id: c.rowId) != nil else { return }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                proxy.scrollTo(c.rowId, anchor: .center)
+
+                        if isNavRepeating {
+                            // ✅ 長押し中：間引き追尾（アニメ無し）
+                            let now = CACurrentMediaTime()
+                            
+                            let minInterval: CFTimeInterval = 0.10  // まずこれでOK（0.10〜0.16で調整）
+
+                            // 直近でスクロールしてたらスキップ
+                            guard now - lastRepeatScrollAt >= minInterval else { return }
+                            lastRepeatScrollAt = now
+
+                            // 直前予約を潰す（暴走防止）
+                            repeatScrollWorkItem?.cancel()
+
+                            let work = DispatchWorkItem {
+                                // 長押しスクロールをCFTimeInterval = 0.10より-0.02短く
+                                withAnimation(.linear(duration: 0.08)) {
+                                    proxy.scrollTo(c.rowId, anchor: .center)
+                                }
+                                // 長押しスクロールをアニメ無しで間引くなら
+//                                proxy.scrollTo(c.rowId, anchor: .center)
+                            }
+                            repeatScrollWorkItem = work
+                            DispatchQueue.main.async(execute: work)
+
+                        } else {
+                            // ✅ 通常：アニメで気持ちよく追尾
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    proxy.scrollTo(c.rowId, anchor: .center)
+                                }
                             }
                         }
                     }
+
+                    
+                    // 長押し終了時の1回スクロール
+                    .onChange(of: isNavRepeating) { repeating in
+                        if repeating {
+                            // ✅ 開始時：タイムスタンプ初期化＆予約掃除
+                            lastRepeatScrollAt = 0
+                            repeatScrollWorkItem?.cancel()
+                            repeatScrollWorkItem = nil
+                            return
+                        }
+
+                        // ✅ 終了時：最後の位置へ1回だけ追従
+                        guard let id = pendingScrollRowId else { return }
+                        pendingScrollRowId = nil
+
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
+                    }
+
+
                     
                     // アプリライフサイクルを監視し落ちる前に絶対保存するトリガー
                     .onChange(of: scenePhase) { phase in
@@ -632,7 +680,21 @@ struct IngredientEngineView: View {
                                 up:    { perform(.moveUp) },
                                 down:  { perform(.moveDown) },
                                 left:  { perform(.moveLeft) },
-                                right: { perform(.moveRight) }
+                                right: { perform(.moveRight) },
+
+                                repeatBegan: { _ in
+                                    isNavRepeating = true
+                                },
+                                repeatEnded: {
+                                    isNavRepeating = false
+
+                                    // ✅ “最後の位置” をStateに渡すだけ（ここではスクロールしない）
+                                    if let c = router.current, store.indexOfRow(id: c.rowId) != nil {
+                                        pendingScrollRowId = c.rowId
+                                    } else {
+                                        pendingScrollRowId = nil
+                                    }
+                                }
                             )
                         )
                     )

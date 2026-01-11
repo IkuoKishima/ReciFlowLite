@@ -39,7 +39,7 @@ final class NavigationDockController: NSObject {
     private var repeatingAction: (() -> Void)?
 
     // ✅ 速度（v15は 0.10 / Liteは 0.08 だったので好みで）
-    private let repeatInterval: TimeInterval = 0.08
+    private let repeatInterval: TimeInterval = 0.10 //let minInterval: CFTimeInterval = 0.10と揃える
 
     // ✅ 安全装置（無限連打防止）
     private var repeatStepCount: Int = 0
