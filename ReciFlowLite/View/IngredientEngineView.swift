@@ -24,10 +24,7 @@ struct IngredientEngineView: View {
     @State private var pendingScrollRowId: UUID? = nil   // 長押し終了時に1回だけ追従
     @State private var lastRepeatScrollAt: CFTimeInterval = 0
     @State private var repeatScrollWorkItem: DispatchWorkItem? = nil
-
-
-
-
+    private var isEditingAnyField: Bool { router.current != nil }//冒頭の記述を意味ある表記に
 
     
     // 外から注入される“アプリ操作”
@@ -321,7 +318,7 @@ struct IngredientEngineView: View {
 
         ForEach(indexedRows, id: \.element.id) { index, row in
             rowWithControls(for: row, at: index)
-                .id(row.id)                      // ✅ scrollTo(c.rowId) と一致してるならOK
+                .id(row.id)                      // scrollTo(c.rowId) と一致してるならOK
                 .padding(.horizontal, 8)       //⚠️画面端からの距離
                 .frame(height: rowHeight(for: row))
 //                                    .debugBG(DEBUG, .orange.opacity(0.06), "行間")
@@ -336,10 +333,9 @@ struct IngredientEngineView: View {
         ZStack(alignment: .bottomTrailing) {
             // ===== スクロール本体 =====
             ScrollViewReader { proxy in
-                ScrollViewReader { proxy in
                     ScrollView {
                         Group {
-                            if router.current != nil {
+                            if isEditingAnyField {
                                 // ✅ フォーカス中は非Lazy（firstResponder が落ちにくい）
                                 VStack(alignment: .leading, spacing: 2) {
                                     rowsBody
@@ -354,43 +350,13 @@ struct IngredientEngineView: View {
 
                         Spacer(minLength: 120)
                     }
-                    .scrollDismissesKeyboard(.never)  // ✅ ①ここ
                     .padding(.trailing, rightRailWidth + rightRailGap)
                     .onAppear {
                         store.loadIfNeeded()
                         router.rebuild(rows: store.rows)
                     }
 
-//                ScrollView {
-//                    LazyVStack(alignment: .leading, spacing: 2) {//⚠️罫線も伸ばす
-//                        
-//                        
-//                        //EngineStoreを参照して表示するから、engineStore.rows)
-//                        let indexedRows = Array(store.rows.enumerated())
-//                        
-//                        ForEach(indexedRows, id: \.element.id) { index, row in
-//                            rowWithControls(for: row, at: index)
-//                                .id(row.id) // ← row.rowId ではなく「その行の本体ID」に統一
-//                                .padding(.horizontal, 8) //⚠️画面端からの距離
-//                                .frame(height: rowHeight(for: row))//ヘッダ高連携
-//                            //                        .debugBG(DEBUG, .orange.opacity(0.06), "行間")
-//                        }
-//                        
-//                        
-//                        
-//                        
-//                        .animation(.snappy, value: isDeleteMode)
-//                        Spacer(minLength: 120) // 右レールの下端付近でも最後の行が触れる余白
-//                    }
-//                    
-//                    .padding(.trailing, rightRailWidth + rightRailGap)
-//                    //                .debugBG(DEBUG, Color.orange.opacity(0.16), "STACK")
-//                    
-//                    // ビューが現れた瞬間を監視するトリガー
-//                    .onAppear {
-//                        store.loadIfNeeded()
-//                        router.rebuild(rows: store.rows)
-//                    }
+
 
                     .onChange(of: store.rowsRevision) { _ in
                         router.rebuild(rows: store.rows)
@@ -441,9 +407,9 @@ struct IngredientEngineView: View {
                     .onChange(of: isNavRepeating) { repeating in
                         if repeating {
                             // ✅ 開始時：タイムスタンプ初期化＆予約掃除
-                            lastRepeatScrollAt = 0
                             repeatScrollWorkItem?.cancel()
                             repeatScrollWorkItem = nil
+                            lastRepeatScrollAt = 0
                             return
                         }
 
@@ -479,10 +445,6 @@ struct IngredientEngineView: View {
                             recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
                         }
                     }
-
-
-
-                }
                 //            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
             }
         }
@@ -550,17 +512,18 @@ struct IngredientEngineView: View {
 
 
                 onPrimary: {
-                    // UIKit側で閉じるボタンもあるが、遷移前にも閉じると事故が減る
-                    dismissKeyboard()
                     router.clear()
-                    // “キーボード収納の開始” を先に走らせてから遷移
-                    DispatchQueue.main.async {
+                    dismissKeyboard()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                         onPrimary()
                     }
                 },
                 onHome: {
+                    router.clear()
                     dismissKeyboard()
-                    onHome()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        onHome()
+                    }
                 },
 
                 onSwipeLeft: {
