@@ -649,6 +649,35 @@ struct IngredientEngineView: View {
         contentForRow(row, at: index)
     }
     
+    //───── 共通のnavを設置し、ブロックヘッダに常態を持たせないようにする ─────//
+    private func commonNav() -> SelectAllTextField.Config.Nav {
+        .init(
+            done:  { perform(.dismissKeyboard) },
+            up:    { perform(.moveUp) },
+            down:  { perform(.moveDown) },
+            left:  { perform(.moveLeft) },
+            right: { perform(.moveRight) },
+
+            repeatBegan: { _ in
+                isNavRepeating = true
+                repeatScrollWorkItem?.cancel()
+                repeatScrollWorkItem = nil
+                lastRepeatScrollAt = 0
+            },
+            repeatEnded: {
+                isNavRepeating = false
+                // “最後の位置” をStateに渡すだけ（ここではスクロールしない）
+                if let c = router.current, store.indexOfRow(id: c.rowId) != nil {
+                    pendingScrollRowId = c.rowId
+                } else {
+                    pendingScrollRowId = nil
+                }
+            }
+        )
+    }
+
+    
+    
     //───── 行としての本体 ───── ✅冒頭定数設定で、amount/unit領域の調整は一元化
     @ViewBuilder //これらは、弁当箱屋さんのように入れ物専門で作る機能、どこに何が幾つはいるかを生成している
     private func contentForRow(_ row: IngredientRow, at index: Int) -> some View {
@@ -675,27 +704,7 @@ struct IngredientEngineView: View {
                                     router.reportFocused(rowId: id, field: field)
                                 }
                             ),
-                            nav: .init(
-                                done:  { perform(.dismissKeyboard) },
-                                up:    { perform(.moveUp) },
-                                down:  { perform(.moveDown) },
-                                left:  { perform(.moveLeft) },
-                                right: { perform(.moveRight) },
-
-                                repeatBegan: { _ in
-                                    isNavRepeating = true
-                                },
-                                repeatEnded: {
-                                    isNavRepeating = false
-
-                                    // ✅ “最後の位置” をStateに渡すだけ（ここではスクロールしない）
-                                    if let c = router.current, store.indexOfRow(id: c.rowId) != nil {
-                                        pendingScrollRowId = c.rowId
-                                    } else {
-                                        pendingScrollRowId = nil
-                                    }
-                                }
-                            )
+                            nav: commonNav()
                         )
                     )
 
@@ -724,13 +733,7 @@ struct IngredientEngineView: View {
                                     router.reportFocused(rowId: id, field: field)
                                 }
                             ),
-                            nav: .init(
-                                done:  { perform(.dismissKeyboard) },
-                                up:    { perform(.moveUp) },
-                                down:  { perform(.moveDown) },
-                                left:  { perform(.moveLeft) },
-                                right: { perform(.moveRight) }
-                            )
+                            nav: commonNav()
                         )
                     )
 
@@ -756,13 +759,7 @@ struct IngredientEngineView: View {
                                     router.reportFocused(rowId: id, field: field)
                                 }
                             ),
-                            nav: .init(
-                                done:  { perform(.dismissKeyboard) },
-                                up:    { perform(.moveUp) },
-                                down:  { perform(.moveDown) },
-                                left:  { perform(.moveLeft) },
-                                right: { perform(.moveRight) }
-                            )
+                            nav: commonNav()
                         )
                     )
                     .frame(width: unitWidth, alignment: .leading)
@@ -781,10 +778,15 @@ struct IngredientEngineView: View {
                             let newId = store.rows[inserted].id
                             selectedRowId = newId
                             store.userDidSelectRow(newId)
+
+                            // ついでに：追加後フォーカスもここで確定（前回の問題3）
+                            router.rebuild(rows: store.rows)
+                            router.set(.init(rowId: newId, field: .name))
                         }
                     },
                     router: router,
-                    perform: perform
+                    perform: perform,
+                    nav: commonNav()   // ✅ ここがポイント
                 )
             }
 //                .debugBG(DEBUG, Color.blue.opacity(0.6), "header")//✅
@@ -823,13 +825,7 @@ struct IngredientEngineView: View {
                                         router.reportFocused(rowId: id, field: field)
                                     }
                                 ),
-                                nav: .init(
-                                    done:  { perform(.dismissKeyboard) },
-                                    up:    { perform(.moveUp) },
-                                    down:  { perform(.moveDown) },
-                                    left:  { perform(.moveLeft) },
-                                    right: { perform(.moveRight) }
-                                )
+                                nav: commonNav()
                             )
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -857,13 +853,7 @@ struct IngredientEngineView: View {
                                         router.reportFocused(rowId: id, field: field)
                                     }
                                 ),
-                                nav: .init(
-                                    done:  { perform(.dismissKeyboard) },
-                                    up:    { perform(.moveUp) },
-                                    down:  { perform(.moveDown) },
-                                    left:  { perform(.moveLeft) },
-                                    right: { perform(.moveRight) }
-                                )
+                                nav: commonNav()
                             )
                         )
                         .frame(width: amountWidth, alignment: .trailing)
@@ -888,13 +878,7 @@ struct IngredientEngineView: View {
                                         router.reportFocused(rowId: id, field: field)
                                     }
                                 ),
-                                nav: .init(
-                                    done:  { perform(.dismissKeyboard) },
-                                    up:    { perform(.moveUp) },
-                                    down:  { perform(.moveDown) },
-                                    left:  { perform(.moveLeft) },
-                                    right: { perform(.moveRight) }
-                                )
+                                nav: commonNav()
                             )
                         )
                         .frame(width: unitWidth, alignment: .leading)

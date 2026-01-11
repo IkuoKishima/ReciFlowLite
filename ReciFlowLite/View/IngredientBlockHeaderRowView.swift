@@ -4,12 +4,10 @@ struct IngredientBlockHeaderRowView: View {
     @ObservedObject var store: IngredientEngineStore
     let block: IngredientBlock
     let onInserted: (Int) -> Void
-
-    // ✅ 追加：フォーカス一本化のため Router を注入
-    @ObservedObject var router: FocusRouter
+    @ObservedObject var router: FocusRouter // フォーカス一本化のため Router を注入
 
     var perform: (EngineCommand) -> Void = { _ in }
-
+    let nav: SelectAllTextField.Config.Nav //nav常態を持たせないようEngineの共通関数を渡す
 
     private let plusXRatio: CGFloat = 0.60
 
@@ -43,13 +41,7 @@ struct IngredientBlockHeaderRowView: View {
                                     router.reportFocused(rowId: id, field: field)
                                 }
                             ),
-                            nav: .init(
-                                done:  { perform(.dismissKeyboard) },
-                                up:    { perform(.moveUp) },
-                                down:  { perform(.moveDown) },
-                                left:  { perform(.moveLeft) },
-                                right: { perform(.moveRight) }
-                            )
+                            nav: nav // Engine共通関数を設置
                         )
                     )
                     .font(.subheadline.weight(.semibold))           // ※ SelectAllTextField は UITextField なので font は効かない
@@ -106,12 +98,24 @@ struct IngredientBlockHeaderRowView: View {
 
     let router = FocusRouter()
 
+    // ✅ Preview用のダミーNav（何もしないでOK）
+    let previewNav = SelectAllTextField.Config.Nav(
+        done: nil,
+        up: nil,
+        down: nil,
+        left: nil,
+        right: nil,
+        repeatBegan: nil,
+        repeatEnded: nil
+    )
+
     return IngredientBlockHeaderRowView(
         store: store,
         block: block,
         onInserted: { _ in },
         router: router,
-        perform: { _ in }
+        perform: { _ in },
+        nav: previewNav
     )
     .padding()
     .background(Color.yellow.opacity(0.1))
