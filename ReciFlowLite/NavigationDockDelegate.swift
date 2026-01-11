@@ -9,7 +9,11 @@ protocol NavigationDockDelegate: AnyObject {
     func navDown()
     func navLeft()
     func navRight()
+
+    func navRepeatBegan(direction: String)
+    func navRepeatEnded()
 }
+
 
 final class NavigationDockController: NSObject {
 
@@ -104,25 +108,24 @@ final class NavigationDockController: NSObject {
         switch gr.state {
 
         case .began:
-            // ✅ 多重起動防止
             stopRepeat()
             repeatStepCount = 0
 
-            // ✅ 長押し開始時だけ触感
             longPressFeedback.prepare()
             longPressFeedback.impactOccurred(intensity: 0.9)
+            delegate?.navRepeatBegan(direction: key) // 追加：repeat開始通知
 
             let closure = actionClosure()
             repeatingAction = closure
 
-            // （好み）最初の1発を即時に入れるならここで1回
-            closure()
+            // （好み）最初の1発を入れるならここで1回
+            // closure()
 
-            // ✅ 連打開始
             repeatTimer = Timer.scheduledTimer(withTimeInterval: repeatInterval, repeats: true) { [weak self] _ in
                 guard let self else { return }
                 self.repeatStepCount += 1
                 if self.repeatStepCount >= self.maxRepeatSteps {
+                    self.delegate?.navRepeatEnded()   // 追加：終了通知
                     self.stopRepeat()
                     return
                 }
@@ -130,7 +133,9 @@ final class NavigationDockController: NSObject {
             }
 
         case .ended, .cancelled, .failed:
+            delegate?.navRepeatEnded() // 追加：repeat終了通知
             stopRepeat()
+
 
         default:
             break

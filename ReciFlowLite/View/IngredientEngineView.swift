@@ -65,16 +65,16 @@ struct IngredientEngineView: View {
 
     
     // MARK: - ────　縦横アクセサリ部品はここの集約　 ─────　//
-    private enum EngineCommand {
-        case dismissKeyboard
-        case moveUp
-        case moveDown
-        case moveLeft
-        case moveRight
-        case enterNext          // Return/Enter
-        case addSingle
-        case addBlock
-    }
+//    private enum EngineCommand {
+//        case dismissKeyboard
+//        case moveUp
+//        case moveDown
+//        case moveLeft
+//        case moveRight
+//        case enterNext          // Return/Enter
+//        case addSingle
+//        case addBlock
+//    }
 
     private func perform(_ cmd: EngineCommand) {
         switch cmd {
@@ -545,49 +545,56 @@ struct IngredientEngineView: View {
     // ここが唯一の横レイアウトにしています
     @ViewBuilder
     private func rowWithControls(for row: IngredientRow, at index: Int) -> some View {
-        HStack(spacing: 8) { //⚠️削除ボタンと文字の距離
-            controlColumn(for: row, at: index)//左ガター
-            rowView(for: row, at: index)       //本体
+        HStack(spacing: 8) {
+            controlColumn(for: row, at: index)
+            rowView(for: row, at: index)
         }
-        
-        
-        // 【 下線 】
         .overlay(
             Rectangle()
-                .frame(height: 0.5) //線の太さ
-                .foregroundColor(Color(.systemGray4).opacity(0.75)) //線の濃さ
+                .frame(height: 0.5)
+                .foregroundColor(Color(.systemGray4).opacity(0.75))
                 .padding(.leading, leftGutterWidth),
             alignment: .bottom
         )
-        .frame(minHeight: rowHeightSingle) //✅ 高さはここで統一
+        .frame(minHeight: rowHeightSingle)
         .contentShape(Rectangle())
         .onTapGesture {
-            guard !isDeleteMode else { return }// ✅ 削除中は行タップ無効🆑連打遅延対策
-            selectedRowId = row.id
-            store.userDidSelectRow(row.id)
+            guard !isDeleteMode else { return }
 
+            // ✅ まず「フォーカス可能なID」を確定（headerをタップしても、実フォーカス先に寄せる）
+            let rid = focusableRowIdForTap(row: row, index: index) ?? row.id
 
-            // ✅ block rail 更新（blockHeader / blockItem 両対応）
-            if case .blockHeader(let block) = row {
+            // ✅ 選択とグローバルレールは “rid” で揃える（一本化）
+            selectedRowId = rid
+            store.userDidSelectRow(rid)
+
+            // ✅ block rail 更新（header/blockItem 両対応）
+            switch row {
+            case .blockHeader(let block):
+                // headerタップは「そのブロック」のアンカーをヘッダに寄せておく（v15思想）
                 store.userDidSelectRowInBlock(blockId: block.id, rowId: block.id)
+
+            case .blockItem(let item):
+                if let blockId = item.parentBlockId {
+                    store.userDidSelectRowInBlock(blockId: blockId, rowId: item.id)
+                }
+
+            case .single:
+                break
             }
-            if case .blockItem(let item) = row, let blockId = item.parentBlockId {
-                store.userDidSelectRowInBlock(blockId: blockId, rowId: row.id)
-            }
-            
-            if let rid = focusableRowIdForTap(row: row, index: index) {
-                // “次の移動の起点” をタップだけで確定させる（v15踏襲）
-                router.reportFocused(rowId: rid, field: .name)
+
+            if case .blockHeader(let block) = row {
+                // ✅ header はタイトル編集
+                router.set(.init(rowId: block.id, field: .headerTitle))
+            } else if let rid = focusableRowIdForTap(row: row, index: index) {
+                router.set(.init(rowId: rid, field: .name))
             }
 
 
-
-            DBLOG("✅ tapped index=\(index) role=\(row.role) rail=\(row.id)")
-  
+            DBLOG("✅ tapped index=\(index) role=\(row.role) rid=\(rid) row=\(row.id)")
         }
-
-
     }
+
     //───── rowView を「中身だけ」） ─────//
     @ViewBuilder
     private func rowView(for row: IngredientRow, at index: Int) -> some View {
@@ -712,29 +719,24 @@ struct IngredientEngineView: View {
                 }
 
                 
-            case .blockHeader(let block):
-                HStack(spacing: 0) {
-                    // 🔹 block インデント（singleとの差）
-                    Spacer()
-                        .frame(width: blockIndent)
-                    
+        case .blockHeader(let block):
+            HStack(spacing: 0) {
+                Spacer().frame(width: blockIndent)
 
-                    // 🔹 Header 本体
-                    IngredientBlockHeaderRowView(
-                        store: store,
-                        block: block
-                    ) { inserted in
-                        // inserted は rows の index で返ってくる想定
-                        // → 選択は rowId で持つ
+                IngredientBlockHeaderRowView(
+                    store: store,
+                    block: block,
+                    onInserted: { inserted in
                         if store.rows.indices.contains(inserted) {
                             let newId = store.rows[inserted].id
                             selectedRowId = newId
                             store.userDidSelectRow(newId)
-                        } else {
-                            // 何もしない（前の選択を維持）
                         }
-                    }
-                }
+                    },
+                    router: router,
+                    perform: perform
+                )
+            }
 //                .debugBG(DEBUG, Color.blue.opacity(0.6), "header")//✅
 
                 

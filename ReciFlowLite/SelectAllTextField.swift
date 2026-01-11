@@ -70,38 +70,47 @@ struct SelectAllTextField: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
+        if uiView.text != text { uiView.text = text }
 
-        if shouldBecomeFirstResponder && !uiView.isFirstResponder {
+        // ✅ nav は毎回更新（一本道化）
+        context.coordinator.updateNavHandlers(nav: config.nav)
+
+        // ✅ フォーカス指示：毎回なれるように（多重だけ防ぐ）
+        if shouldBecomeFirstResponder,
+           !uiView.isFirstResponder,
+           !context.coordinator.isBecoming {
+
+            let coordinator = context.coordinator
+            coordinator.isBecoming = true
+
             DispatchQueue.main.async {
-                self.config.internalFocus.begin?()
                 uiView.becomeFirstResponder()
                 uiView.selectAll(nil)
-                self.config.internalFocus.end?()
+                coordinator.isBecoming = false
             }
         }
 
-        // “今アクティブなTextField”に対して Dock の命令先を更新
-        context.coordinator.updateNavHandlers(nav: config.nav)
-        
-        // ✅ Tab / Shift+Tab を “今のアクティブ設定” に追従させる
         if let tf = uiView as? KeyCommandTextField {
             tf.onTab = { context.coordinator.navRightByTab() }
             tf.onShiftTab = { context.coordinator.navLeftByShiftTab() }
         }
     }
 
+
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     // MARK: - Coordinator
 
     final class Coordinator: NSObject, UITextFieldDelegate, NavigationDockDelegate {
-        var parent: SelectAllTextField
-        private weak var activeTextField: UITextField?
 
+        var parent: SelectAllTextField
+        fileprivate var isBecoming = false
+
+        private weak var activeTextField: UITextField?
         private var nav: Config.Nav = .init(done: nil, up: nil, down: nil, left: nil, right: nil)
+
+        private(set) var isActive = false
 
         init(_ parent: SelectAllTextField) {
             self.parent = parent
@@ -113,36 +122,33 @@ struct SelectAllTextField: UIViewRepresentable {
         }
 
         func textFieldDidBeginEditing(_ textField: UITextField) {
+            isActive = true
+            isBecoming = false
             activeTextField = textField
             NavigationDockController.shared.delegate = self
 
             parent.config.onDidBecomeFirstResponder?()
 
             if let focus = parent.config.focus {
-                focus.onReport(focus.rowId, focus.field)
+                focus.onReport(focus.rowId, focus.field)   // ← “報告”だけ
             }
         }
-        
-        func navRightByTab() {
-            parent.config.internalFocus.begin?()   // ✅ beginInternalFocusUpdate に繋がってる前提
-            nav.right?()
-            parent.config.internalFocus.end?()
-        }
 
-        func navLeftByShiftTab() {
-            parent.config.internalFocus.begin?()
-            nav.left?()
-            parent.config.internalFocus.end?()
-        }
+        // ✅ Tab / Shift+Tab も薄く：ただ命令を呼ぶだけ
+        func navRightByTab()     { nav.right?() }
+        func navLeftByShiftTab() { nav.left?()  }
 
-
-        // NavigationDockDelegate
+        // MARK: - NavigationDockDelegate（薄く）
         func navDone()  { activeTextField?.resignFirstResponder(); nav.done?() }
-        
         func navUp()    { nav.up?() }
         func navDown()  { nav.down?() }
         func navLeft()  { nav.left?() }
         func navRight() { nav.right?() }
+
+        // ✅ 長押し開始/終了通知も“何もしない”
+        // （Routerの begin/end をここで触ると分散するので禁止）
+        func navRepeatBegan(direction: String) { }
+        func navRepeatEnded() { }
 
         @objc func editChanged(_ sender: UITextField) {
             parent.text = sender.text ?? ""
@@ -150,9 +156,7 @@ struct SelectAllTextField: UIViewRepresentable {
 
         @objc func editDidBegin(_ sender: UITextField) {
             DispatchQueue.main.async {
-                if !(sender.text ?? "").isEmpty {
-                    sender.selectAll(nil)
-                }
+                if !(sender.text ?? "").isEmpty { sender.selectAll(nil) }
             }
         }
 
@@ -160,14 +164,16 @@ struct SelectAllTextField: UIViewRepresentable {
             parent.config.onCommit?()
             return false
         }
-        
+
         func textFieldDidEndEditing(_ textField: UITextField) {
+            isActive = false
+            isBecoming = false
             if NavigationDockController.shared.delegate === self {
                 NavigationDockController.shared.delegate = nil
             }
         }
-
     }
+
     
     // MARK: - Tab Shift+Tab対応ロジック
     private final class KeyCommandTextField: UITextField {

@@ -1,5 +1,3 @@
-/// MARK: - IngredientBlockHeaderRowView.swift
-/// 
 import SwiftUI
 
 struct IngredientBlockHeaderRowView: View {
@@ -7,7 +5,13 @@ struct IngredientBlockHeaderRowView: View {
     let block: IngredientBlock
     let onInserted: (Int) -> Void
 
-    private let plusXRatio: CGFloat = 0.60 //ボタンの距離
+    // ✅ 追加：フォーカス一本化のため Router を注入
+    @ObservedObject var router: FocusRouter
+
+    var perform: (EngineCommand) -> Void = { _ in }
+
+
+    private let plusXRatio: CGFloat = 0.60
 
     private var titleBinding: Binding<String> {
         Binding(
@@ -21,31 +25,52 @@ struct IngredientBlockHeaderRowView: View {
             ZStack(alignment: .leading) {
 
                 VStack {
-                    Spacer() // ← 上にスペースを押し込む
+                    Spacer()
 
-                    TextField("GroupTitle", text: titleBinding)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .textFieldStyle(.plain)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // ✅ TextField → SelectAllTextField に置き換え
+                    SelectAllTextField(
+                        text: titleBinding,
+                        placeholder: "GroupTitle",
+                        shouldBecomeFirstResponder:
+                            router.current?.rowId == block.id &&
+                            router.current?.field == .headerTitle,
+                        config: .init(
+                            onCommit: { perform(.enterNext) }, // Enter の扱いは方針次第（とりあえず既存へ）
+                            focus: .init(
+                                rowId: block.id,
+                                field: .headerTitle,
+                                onReport: { id, field in
+                                    router.reportFocused(rowId: id, field: field)
+                                }
+                            ),
+                            nav: .init(
+                                done:  { perform(.dismissKeyboard) },
+                                up:    { perform(.moveUp) },
+                                down:  { perform(.moveDown) },
+                                left:  { perform(.moveLeft) },
+                                right: { perform(.moveRight) }
+                            )
+                        )
+                    )
+                    .font(.subheadline.weight(.semibold))           // ※ SelectAllTextField は UITextField なので font は効かない
+                    // ↑ もし見た目を揃えたいなら SelectAllTextField に font を渡せる拡張を後でやる（今は一本化優先）
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .baselineOffset(-1.5) // 下寄せの「沈み量」微調整はこれが最適
+                .baselineOffset(-1.5)
 
                 Button {
                     let inserted = store.addBlockItemAtBlockRail(blockId: block.id)
                     onInserted(inserted)
-            #if DEBUG
+                #if DEBUG
                     print("✅ header plus tapped blockId=\(block.id) inserted=\(inserted)")
-            #endif
+                #endif
                 } label: {
                     ZStack {
                         Circle()
                             .strokeBorder(.secondary.opacity(0.40), lineWidth: 1.1)
-
                         Circle()
                             .strokeBorder(.white.opacity(0.18), lineWidth: 0.8)
-                            .padding(1.0) // ほんの少し内側に
-
+                            .padding(1.0)
                         Image(systemName: "plus")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -54,14 +79,11 @@ struct IngredientBlockHeaderRowView: View {
                     .background(.ultraThinMaterial.opacity(0.25))
                     .clipShape(Circle())
                 }
-
-
                 .buttonStyle(.plain)
-                .contentShape(Circle()) // タップ判定を丸に合わせる（任意）
+                .contentShape(Circle())
                 .position(x: geo.size.width * plusXRatio,
                           y: geo.size.height / 2)
             }
-
             .frame(height: 32)
             .contentShape(Rectangle())
         }
@@ -70,6 +92,7 @@ struct IngredientBlockHeaderRowView: View {
     }
 }
 
+
 #if DEBUG
 #Preview("BlockHeaderRow - Solo") {
     let store = IngredientEngineStore(parentRecipeId: UUID())
@@ -77,19 +100,20 @@ struct IngredientBlockHeaderRowView: View {
         id: UUID(),
         parentRecipeId: store.parentRecipeId,
         orderIndex: 0,
-        title: "" //実際の文字入力
+        title: ""
     )
-
-    // ✅ Bindingがstore.rowsを参照するので、ここが必須
     store.rows = [.blockHeader(block)]
+
+    let router = FocusRouter()
 
     return IngredientBlockHeaderRowView(
         store: store,
         block: block,
-        onInserted: { _ in }
+        onInserted: { _ in },
+        router: router,
+        perform: { _ in }
     )
     .padding()
     .background(Color.yellow.opacity(0.1))
-//    .overlay(Rectangle().stroke(.red.opacity(0.6), lineWidth: 1))
 }
 #endif
