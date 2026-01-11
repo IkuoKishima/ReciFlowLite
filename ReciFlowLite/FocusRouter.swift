@@ -9,12 +9,13 @@ final class FocusRouter: ObservableObject {
     @Published private(set) var current: FocusCoordinate? = nil  // 現在地（レール上のフォーカス）
     private(set) var railRowIds: [UUID] = [] // レール本体（blockHeader は含めない。single と blockItem のみ）
     private var isInternalUpdate = false // 内部更新ガード（becomeFirstResponder → didBegin のループ回避）
-    
+    private var cachedRows: [IngredientRow] = [] // 最新 rows を保持（header 合流で必要）
     
     // MARK: - Build / Rebuild
 
     /// rows から「フォーカス可能 rowId レール」を作る
     func rebuild(rows: [IngredientRow]) {
+        cachedRows = rows
         
         railRowIds = rows.compactMap { row in
             switch row {
@@ -92,9 +93,24 @@ final class FocusRouter: ObservableObject {
     }
     
     private func mergeHeaderToRail() {
-        guard let first = railRowIds.first else { return }
-        current = .init(rowId: first, field: .name)
+        guard let c = current else { return }
+
+        // headerTitle の rowId は block.id のはず
+        if c.field == .headerTitle {
+            if let firstItem = firstItemId(inBlock: c.rowId, rows: cachedRows) {
+                current = .init(rowId: firstItem, field: .name)
+                return
+            }
+        }
+
+        // ブロック内に item が無い等 → フォールバック（最後に触ってた current を壊しにくい）
+        if let first = railRowIds.first {
+            current = .init(rowId: first, field: .name)
+        } else {
+            current = nil
+        }
     }
+
 
     
     private func internally(_ body: () -> Void) {
