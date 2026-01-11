@@ -620,10 +620,6 @@ struct IngredientEngineView: View {
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
-                            internalFocus: .init(
-                                begin: { router.beginInternalFocusUpdate() },
-                                end:   { router.endInternalFocusUpdate() }
-                            ),
                             focus: .init(
                                 rowId: item.id,
                                 field: .name,
@@ -659,10 +655,6 @@ struct IngredientEngineView: View {
                         keyboardType: .decimalPad,       // ← 差分②
                         config: .init(
                             onCommit: { perform(.enterNext) },
-                            internalFocus: .init(
-                                begin: { router.beginInternalFocusUpdate() },
-                                end:   { router.endInternalFocusUpdate() }
-                            ),
                             focus: .init(
                                 rowId: item.id,
                                 field: .amount,          // ← 差分③
@@ -695,10 +687,6 @@ struct IngredientEngineView: View {
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
-                            internalFocus: .init(
-                                begin: { router.beginInternalFocusUpdate() },
-                                end:   { router.endInternalFocusUpdate() }
-                            ),
                             focus: .init(
                                 rowId: item.id,
                                 field: .unit,
@@ -766,10 +754,6 @@ struct IngredientEngineView: View {
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
-                                internalFocus: .init(
-                                    begin: { router.beginInternalFocusUpdate() },
-                                    end:   { router.endInternalFocusUpdate() }
-                                ),
                                 focus: .init(
                                     rowId: item.id,
                                     field: .name,
@@ -804,10 +788,6 @@ struct IngredientEngineView: View {
                             keyboardType: .decimalPad,       // ← 差分②
                             config: .init(
                                 onCommit: { perform(.enterNext) },
-                                internalFocus: .init(
-                                    begin: { router.beginInternalFocusUpdate() },
-                                    end:   { router.endInternalFocusUpdate() }
-                                ),
                                 focus: .init(
                                     rowId: item.id,
                                     field: .amount,          // ← 差分③
@@ -839,10 +819,6 @@ struct IngredientEngineView: View {
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
-                                internalFocus: .init(
-                                    begin: { router.beginInternalFocusUpdate() },
-                                    end:   { router.endInternalFocusUpdate() }
-                                ),
                                 focus: .init(
                                     rowId: item.id,
                                     field: .unit,

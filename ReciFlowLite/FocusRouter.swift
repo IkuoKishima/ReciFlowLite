@@ -234,6 +234,7 @@ final class FocusRouter: ObservableObject {
 
     // MARK: - Internal Focus Update Guard
 
-    func beginInternalFocusUpdate() { isInternalUpdate = true }
-    func endInternalFocusUpdate()   { isInternalUpdate = false }
+    private func beginInternalFocusUpdate() { isInternalUpdate = true }
+    private func endInternalFocusUpdate()   { isInternalUpdate = false }
+
 }
