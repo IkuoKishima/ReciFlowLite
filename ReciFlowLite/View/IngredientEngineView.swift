@@ -497,7 +497,7 @@ struct IngredientEngineView: View {
                 mode: .back,
                 showsDelete: true,
                 showsAdd: true,
-                showsKeyboardDismiss: true,
+                showsKeyboardDismiss: false, // ← EngineViewだけ隠
                 isDeleteMode: isDeleteMode,
 
                 onToggleDelete: {

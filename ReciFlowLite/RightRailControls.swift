@@ -133,7 +133,7 @@ struct RightRailControls: View {
                 }
                 .position(
                     x: geo.size.width - 18,
-                    y: geo.size.height * 0.38   // ボタンの配置を決める上から38%（=下から62%）
+                    y: geo.size.height * 0.28   // ボタンの配置を決める上から28%（=下から72%）
                 )
             }
         }

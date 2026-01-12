@@ -177,17 +177,26 @@ final class NavigationDockController: NSObject {
         longPressKey: String? = nil
     ) -> UIBarButtonItem {
 
-        let buttonSize: CGFloat = 30
-        let containerSize: CGFloat = 30
+        // MARK: - ボタンサイズと初期化
+        let visualSize: CGFloat = 34
+        let hitSize: CGFloat = 44
 
-        // ① SwiftUI（見た目だけ）
-        let host = UIHostingController(rootView: GlassIconButton(symbol: symbol) { })
+        let visual = GlassIconButton(
+            symbol: symbol,
+            action: { },
+            hitSize: hitSize,
+            visualDiameter: visualSize
+        )
+
+
+        let host = UIHostingController(rootView: visual)
         host.view.backgroundColor = .clear
-        host.view.isUserInteractionEnabled = false   // ✅ 超重要：見た目だけにする
+        host.view.isUserInteractionEnabled = false
 
-        // ② コンテナ（サイズ確定）
-        let container = UIView(frame: CGRect(x: 0, y: 0, width: containerSize, height: containerSize))
+        // ② 見た目コンテナ
+        let container = UIView(frame: CGRect(x: 0, y: 0, width: visualSize, height: visualSize))
         container.backgroundColor = .clear
+        container.clipsToBounds = false // ← 透明タップ(44)をはみ出させる
 
         host.view.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(host.view)
@@ -195,31 +204,29 @@ final class NavigationDockController: NSObject {
         NSLayoutConstraint.activate([
             host.view.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             host.view.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            host.view.widthAnchor.constraint(equalToConstant: buttonSize),
-            host.view.heightAnchor.constraint(equalToConstant: buttonSize),
+            host.view.widthAnchor.constraint(equalToConstant: visualSize),
+            host.view.heightAnchor.constraint(equalToConstant: visualSize),
         ])
 
-        // ③ 透明ボタン（UIKitがタッチを受ける）
-        let touch = UIButton(type: .custom)
+        // “UIControl(透明板)” に変える（見えない）
+        let touch = UIControl()
         touch.backgroundColor = .clear
         touch.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(touch)
 
         NSLayoutConstraint.activate([
-            touch.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            touch.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            touch.topAnchor.constraint(equalTo: container.topAnchor),
-            touch.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            touch.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            touch.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            touch.widthAnchor.constraint(equalToConstant: hitSize),
+            touch.heightAnchor.constraint(equalToConstant: hitSize),
         ])
 
-        // 単発タップ
         touch.addTarget(self, action: #selector(handleTapOverlay(_:)), for: .touchUpInside)
         TapActionStore.shared.register(action: tap, for: touch)
 
-        // 長押し（必要な場合のみ）
+        // 長押し
         if let key = longPressKey {
             touch.accessibilityHint = key
-
             let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
             lp.minimumPressDuration = 0.35
             lp.cancelsTouchesInView = true
@@ -228,14 +235,13 @@ final class NavigationDockController: NSObject {
 
         let item = UIBarButtonItem(customView: container)
 
-        // サイズ固定（崩れ防止）
+        // 見た目サイズ固定（30）
         container.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: containerSize),
-            container.heightAnchor.constraint(equalToConstant: containerSize)
+            container.widthAnchor.constraint(equalToConstant: visualSize),
+            container.heightAnchor.constraint(equalToConstant: visualSize)
         ])
 
         return item
     }
-
 }

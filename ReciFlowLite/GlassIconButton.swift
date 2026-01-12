@@ -6,8 +6,17 @@ struct GlassIconButton: View {
     let symbol: String
     let action: () -> Void
 
-    private let size: CGFloat = 30
-    private let ring: CGFloat = 1.4
+    /// 当たり判定（固定で44など）
+    var hitSize: CGFloat = 44
+
+    /// 見た目のガラス球（ここを34にすると“小さく見える”）
+    var visualDiameter: CGFloat = 44
+
+    /// アイコン枠（visualに連動させる：30固定ではなく比率）
+    private var iconBox: CGFloat { visualDiameter * (30.0 / 44.0) }
+
+    /// リング線幅（これも比率で縮む）
+    private var ringWidth: CGFloat { visualDiameter * (1.4 / 44.0) }
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -18,46 +27,95 @@ struct GlassIconButton: View {
             Image(systemName: symbol)
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.primary)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: size, height: size)
+                .font(.system(size: visualDiameter * (16.0 / 44.0), weight: .semibold))
+                .frame(width: iconBox, height: iconBox)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+
+        // ✅ 当たり判定は44のまま
+        .frame(width: hitSize, height: hitSize)
+
+        // ✅ 見た目だけ中央に小さく置く
         .background {
-            // ✅ 中身は塗らない（円盤を作らない）
+            glassBody(d: visualDiameter)
+                .frame(width: visualDiameter, height: visualDiameter)
+                .allowsHitTesting(false) // ← 見た目側はヒットさせない
+        }
+    }
+
+    @ViewBuilder
+    private func glassBody(d: CGFloat) -> some View {
+        // ✅ ここから下は “d基準” の比率指定にするのが肝
+        let rw = ringWidth
+        let ringInset = d * (0.4 / 44.0)
+        let ringOutset = d * (1.2 / 44.0)
+        let cut = rw * 2.2  // これだけは線幅に連動でOK（比率崩れにくい）
+
+        ZStack {
             Circle().fill(Color.clear)
 
-            // ✅ ガラスは「縁」だけ
-                .overlay {
-                    Circle().strokeBorder(
-                        // 外周ハイライト（上側が少し明るいと“曲率”が出る）
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(isPreview ? 0.22 : 0.14),
-                                .white.opacity(isPreview ? 0.08 : 0.05),
-                                .white.opacity(0.00)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: ring
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            .white.opacity(isPreview ? 0.10 : 0.06),
+                            .white.opacity(0.0)
+                        ],
+                        center: .center,
+                        startRadius: d * 0.20,
+                        endRadius: d * 0.52
                     )
-                }
+                )
+                .blendMode(.plusLighter)
+                .opacity(0.9)
 
-            // ✅ 外側の落ち影（ガラスが浮いて見える）
-                .shadow(color: .black.opacity(isPreview ? 0.18 : 0.12),
-                        radius: isPreview ? 10 : 8, y: isPreview ? 5 : 4)
-
-            // ✅ もう一段だけ “薄い” エッジ（輪郭が安定する）
+                // 外周リング（比率維持）
                 .overlay {
-                    Circle().strokeBorder(.white.opacity(isPreview ? 0.10 : 0.06), lineWidth: 0.8)
-                }
+                    Circle()
+                        .stroke(
+                            AngularGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: .white.opacity(0.0), location: 0.00),
+                                    .init(color: .white.opacity(isPreview ? 0.40 : 0.26), location: 0.07),
+                                    .init(color: .white.opacity(0.0), location: 0.30),
 
-                .compositingGroup()
+                                    .init(color: .white.opacity(0.0), location: 0.54),
+                                    .init(color: .white.opacity(isPreview ? 0.32 : 0.22), location: 0.62),
+                                    .init(color: .white.opacity(0.0), location: 0.86),
+                                ]),
+                                center: .center,
+                                angle: .degrees(-35)
+                            ),
+                            lineWidth: rw
+                        )
+                        .blendMode(.screen)
+                        // ✅ “外へ押し出す” も d 比率で
+                        .frame(
+                            width: d - ringInset + ringOutset,
+                            height: d - ringInset + ringOutset
+                        )
+                        // ✅ 外周帯だけ残す（線幅に連動）
+                        .mask {
+                            ZStack {
+                                Circle().frame(width: d, height: d)
+                                Circle()
+                                    .frame(width: d - cut, height: d - cut)
+                                    .blendMode(.destinationOut)
+                            }
+                            .compositingGroup()
+                        }
+                }
+                .blendMode(.screen)
         }
+        .compositingGroup()
         .clipShape(Circle())
     }
 }
+
+
+
+
 
 ////ビルドせずに試す場合の表示法
 //#Preview("GlassIconButton – Quick") {
@@ -83,6 +141,10 @@ struct GlassIconButton: View {
 
 /// Preview専用：背景を変えて“透過感”を比較する
 private struct GlassIconButtonPreviewGallery: View {
+
+    // ✅ 見た目の外径（ガラス球の直径）
+    private let diameter: CGFloat = 44
+
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -127,11 +189,41 @@ private struct GlassIconButtonPreviewGallery: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             HStack(spacing: 18) {
-                GlassIconButton(symbol: "keyboard.chevron.compact.down") {}
-                GlassIconButton(symbol: "chevron.up") {}
-                GlassIconButton(symbol: "chevron.left") {}
-                GlassIconButton(symbol: "chevron.right") {}
-                GlassIconButton(symbol: "chevron.down") {}
+                GlassIconButton(
+                    symbol: "keyboard.chevron.compact.down",
+                    action: { /* ... */ },
+                    hitSize: 44,
+                    visualDiameter: 34
+                )
+//                GlassIconButton(
+//                    symbol: "keyboard.chevron.compact.down",
+//                    action: {},
+//                    diameter: diameter
+//                )
+                GlassIconButton(
+                    symbol: "chevron.up",
+                    action: { /* ... */ },
+                    hitSize: 44,
+                    visualDiameter: 34
+                )
+                GlassIconButton(
+                    symbol: "chevron.left",
+                    action: { /* ... */ },
+                    hitSize: 44,
+                    visualDiameter: 34
+                )
+                GlassIconButton(
+                    symbol: "chevron.right",
+                    action: { /* ... */ },
+                    hitSize: 44,
+                    visualDiameter: 34
+                )
+                GlassIconButton(
+                    symbol: "chevron.down",
+                    action: { /* ... */ },
+                    hitSize: 44,
+                    visualDiameter: 34
+                )
             }
         }
         .overlay(alignment: .topLeading) {

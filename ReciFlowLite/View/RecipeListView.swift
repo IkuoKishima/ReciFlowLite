@@ -111,37 +111,25 @@ struct RecipeListView: View {
             }
         }
 
+        // 追加ボタン
         // ✅ 追加ボタン
         .overlay(alignment: .bottomTrailing) {
-            Button {
-                Task {
-                    let newId = await store.addNewRecipeAndPersist()
-                    await MainActor.run { path.append(.edit(newId)) }
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                    Circle()
-                        .strokeBorder(.white.opacity(0.22), lineWidth: 1)
-                    Circle()
-                        .strokeBorder(.black.opacity(0.10), lineWidth: 0.5)
-
-                    Image(systemName: "square.and.pencil")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(width: 46, height: 46)
-            }
-
+            GlassIconButton(
+                symbol: "square.and.pencil",
+                action: {
+                    Task {
+                        let newId = await store.addNewRecipeAndPersist()
+                        await MainActor.run { path.append(.edit(newId)) }
+                    }
+                },
+                hitSize: 46,
+                visualDiameter: 46
+            )
             .disabled(store.isLoading)
             .opacity(store.isLoading ? 0.3 : 1.0)
             .padding(.trailing, 18)
-            // ✅ Undoが出ている間だけボタンを上へ逃がす
             .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
             .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
-
         }
-
     }
 }
