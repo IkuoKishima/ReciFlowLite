@@ -26,9 +26,9 @@ final class NavigationDockController: NSObject {
         tb.isTranslucent = true
         tb.setBackgroundImage(UIImage(), forToolbarPosition: .any, barMetrics: .default)
         tb.setShadowImage(UIImage(), forToolbarPosition: .any)
-        tb.backgroundColor = .clear
         tb.clipsToBounds = false
-        tb.frame.size.height = 44
+        tb.frame.size.height = 50
+        tb.backgroundColor = .clear
         tb.items = makeItems()
         return tb
     }()
