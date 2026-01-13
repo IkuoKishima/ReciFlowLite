@@ -201,14 +201,14 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		90326E1C2F15B4AB00EBCE5F /* CoreGroups */ = {
+		90326E1C2F15B4AB00EBCE5F /* Core */ = {
 			isa = PBXGroup;
 			children = (
 				90326E1D2F15B4DB00EBCE5F /* Models */,
 				90326E1E2F15B51800EBCE5F /* Persistence */,
 				90326E202F15C4F600EBCE5F /* UIComponents */,
 			);
-			path = CoreGroups;
+			path = Core;
 			sourceTree = "<group>";
 		};
 		90326E1D2F15B4DB00EBCE5F /* Models */ = {
@@ -259,7 +259,7 @@
 				904805CB2EFE003C00D5B784 /* README.md */,
 				90326E132F15B10500EBCE5F /* App */,
 				90326E142F15B19500EBCE5F /* Features */,
-				90326E1C2F15B4AB00EBCE5F /* CoreGroups */,
+				90326E1C2F15B4AB00EBCE5F /* Core */,
 				90326E212F15C55E00EBCE5F /* Utilities */,
 				90379E402EFBCFE400F72F6B /* ReciFlowLite */,
 				90379E4E2EFBCFE600F72F6B /* ReciFlowLiteTests */,
