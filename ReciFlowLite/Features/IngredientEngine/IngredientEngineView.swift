@@ -24,6 +24,9 @@ struct IngredientEngineView: View {
     @State private var pendingScrollRowId: UUID? = nil   // 長押し終了時に1回だけ追従
     @State private var lastRepeatScrollAt: CFTimeInterval = 0
     @State private var repeatScrollWorkItem: DispatchWorkItem? = nil
+    //紙色適用のState
+    @StateObject private var themeStore = ThemeStore()
+    @State private var showPaperSheet = false
     private var isEditingAnyField: Bool { router.current != nil }//冒頭の記述を意味ある表記に
 
     
@@ -59,6 +62,18 @@ struct IngredientEngineView: View {
     private let rowHeightSingle: CGFloat      = 34  // 単体＆blockItem
     private let rowHeightBlockHeader: CGFloat = 34 //見出しだけ少し高く
     
+    // MARK: - ──── 罫線（下線）色 ───── //
+
+    private var underlineColor: Color {
+        if themeStore.paperStyle.prefersLightInk(scheme: colorScheme) {
+            return Color.white.opacity(0.16)
+        } else {
+            return Color.black.opacity(0.18)
+        }
+    }
+
+
+    
     // ブロックアイテム行の高さを補正
     private func rowHeight(for row: IngredientRow) -> CGFloat {
         switch row {
@@ -67,7 +82,6 @@ struct IngredientEngineView: View {
         }
     }
 
-    
     // MARK: - ────　縦横アクセサリ部品はここの集約　 ─────　//
 
     private func perform(_ cmd: EngineCommand) {
@@ -329,8 +343,12 @@ struct IngredientEngineView: View {
 
     // MARK: - ===== 🟨　表示ページ本体はここから　🟨　=====　//
     
+    @Environment(\.colorScheme) private var colorScheme // 背景適用に必要
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+            // ✅ 背景：紙色（罫線は既に各行で出てるので、ここは単色でOK）
+            themeStore.paperStyle.paperColor(scheme: colorScheme)
+                .ignoresSafeArea()
             // ===== スクロール本体 =====
             ScrollViewReader { proxy in
                     ScrollView {
@@ -445,49 +463,51 @@ struct IngredientEngineView: View {
                             recipeStore.touchRecipeUpdatedAt(store.parentRecipeId)
                         }
                     }
-                //            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
+//                            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
             }
         }
+        //黒紙での文字色問題を専用エクステンションで全体文字色一発変換
+        .foregroundStyle(themeStore.paperStyle.inkColor(scheme: colorScheme))
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
         .overlay(alignment: .topTrailing) {
             // ① 土台：右が濃く、左へ霞む（帯幅を制御）
-                    LinearGradient(
-                        colors: [
-                            Color.brown.opacity(0.28), // 紙の濃い端
-                            Color.brown.opacity(0.18),
-                            Color.brown.opacity(0.02),
-                            Color.clear
-                        ],
-                        startPoint: .trailing,
-                        endPoint: .leading
-                    )
-                    .frame(width: 40 + 4) // 44=当たり判定 + 霞み
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
+//                    LinearGradient(
+//                        colors: [
+//                            Color.brown.opacity(0.80), // 紙の濃い端
+//                            Color.brown.opacity(0.35),
+//                            Color.brown.opacity(0.08),
+//                            Color.clear
+//                        ],
+//                        startPoint: .trailing,
+//                        endPoint: .leading
+//                    )
+//                    .frame(width: 40 + 4) // 44=当たり判定 + 霞み
+//                    .ignoresSafeArea()
+//                    .allowsHitTesting(false)
 
                     // ② 縁のハイライト（ガラスの“角”）
-                    Rectangle()
-                        .fill(Color.white.opacity(0.12))
-                        .frame(width: 1)
-                        .offset(x: -2)
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
+//                    Rectangle()
+//                        .fill(Color.white.opacity(0.12))
+//                        .frame(width: 1)
+//                        .offset(x: -2)
+//                        .ignoresSafeArea()
+//                        .allowsHitTesting(false)
 
-                    // ③ 反射線（細い光。あると急にガラスになる）
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.18),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(width: 10)      // 反射線の太さ
-                    .offset(x: -10)        // 右端から少し内側
-                    .blendMode(.screen)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
+//                    // ③ 反射線（細い光。あると急にガラスになる）
+//                    LinearGradient(
+//                        colors: [
+//                            Color.white.opacity(0.18),
+//                            Color.clear
+//                        ],
+//                        startPoint: .top,
+//                        endPoint: .bottom
+//                    )
+//                    .frame(width: 10)      // 反射線の太さ
+//                    .offset(x: -10)        // 右端から少し内側
+//                    .blendMode(.screen)
+//                    .ignoresSafeArea()
+//                    .allowsHitTesting(false)
 
             
             
@@ -546,6 +566,21 @@ struct IngredientEngineView: View {
         .navigationBarBackButtonHidden(true)
         .padding(0) // “紙面”を削らない。余白はScroll内で管理
         .navigationTitle(recipeTitle.isEmpty ? "材料" : recipeTitle)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                GlassIconButton(symbol: "paintpalette", action: {
+                    showPaperSheet = true
+                })
+                .frame(width: 34, height: 34)   // ✅ ナビバーに収まるサイズ
+                .contentShape(Rectangle())      // ✅ タップ範囲を確保（好みで）
+                .accessibilityLabel("紙色を変更")
+            }
+        }
+        .sheet(isPresented: $showPaperSheet) {
+            PaperPickerSheet(themeStore: themeStore)
+                .presentationDetents([.medium])
+        }
+
 
         
 
@@ -604,7 +639,7 @@ struct IngredientEngineView: View {
         .overlay(
             Rectangle()
                 .frame(height: 0.5)
-                .foregroundColor(Color(.systemGray4).opacity(0.75))
+                .foregroundColor(underlineColor)
                 .padding(.leading, leftGutterWidth),
             alignment: .bottom
         )
@@ -705,6 +740,9 @@ struct IngredientEngineView: View {
                         ),
                         placeholder: "材料",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
+                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
@@ -735,6 +773,8 @@ struct IngredientEngineView: View {
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
                         textAlignment: .right,           // ← 差分①
                         keyboardType: .decimalPad,       // ← 差分②
+                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                         config: .init(
                             onCommit: { perform(.enterNext) },
                             focus: .init(
@@ -760,6 +800,8 @@ struct IngredientEngineView: View {
                     ),
                         placeholder: "単位",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
+                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
@@ -797,8 +839,9 @@ struct IngredientEngineView: View {
                     },
                     router: router,
                     perform: perform,
-                    nav: commonNav()   // ✅ ここがポイント
+                    nav: commonNav()
                 )
+                .environmentObject(themeStore)
             }
 //                .debugBG(DEBUG, Color.blue.opacity(0.6), "header")//✅
 
@@ -826,6 +869,8 @@ struct IngredientEngineView: View {
                             ),
                             placeholder: "材料",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
+                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
@@ -855,6 +900,8 @@ struct IngredientEngineView: View {
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
                             textAlignment: .right,           // ← 差分①
                             keyboardType: .decimalPad,       // ← 差分②
+                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                             config: .init(
                                 onCommit: { perform(.enterNext) },
                                 focus: .init(
@@ -879,6 +926,8 @@ struct IngredientEngineView: View {
                         ),
                             placeholder: "単位",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
+                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },

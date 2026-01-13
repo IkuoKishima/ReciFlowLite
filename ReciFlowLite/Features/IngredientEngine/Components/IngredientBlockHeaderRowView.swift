@@ -4,6 +4,9 @@ struct IngredientBlockHeaderRowView: View {
     @ObservedObject var store: IngredientEngineStore
     let block: IngredientBlock
     let onInserted: (Int) -> Void
+    // 黒背景での文字色適用
+    @EnvironmentObject private var themeStore: ThemeStore
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var router: FocusRouter // フォーカス一本化のため Router を注入
 
     var perform: (EngineCommand) -> Void = { _ in }
@@ -32,6 +35,8 @@ struct IngredientBlockHeaderRowView: View {
                         shouldBecomeFirstResponder:
                             router.current?.rowId == block.id &&
                             router.current?.field == .headerTitle,
+                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
                         config: .init(
                             onCommit: { perform(.enterNext) }, // Enter の扱いは方針次第（とりあえず既存へ）
                             focus: .init(
@@ -117,6 +122,7 @@ struct IngredientBlockHeaderRowView: View {
         perform: { _ in },
         nav: previewNav
     )
+    .environmentObject(ThemeStore())
     .padding()
     .background(Color.yellow.opacity(0.1))
 }

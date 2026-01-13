@@ -6,7 +6,6 @@ import UIKit
 struct SelectAllTextField: UIViewRepresentable {
 
     // MARK: - Config
-
     struct Config {
         struct Focus {
             var rowId: UUID
@@ -46,6 +45,10 @@ struct SelectAllTextField: UIViewRepresentable {
     var textAlignment: NSTextAlignment = .left
     var keyboardType: UIKeyboardType = .default
 
+    // ✅ 追加：色（SwiftUI → UIKit）
+    var inkColor: UIColor = .label
+    var placeholderColor: UIColor = UIColor.secondaryLabel.withAlphaComponent(0.30)
+
     var config: Config = .empty
 
     // MARK: - UIViewRepresentable
@@ -53,10 +56,15 @@ struct SelectAllTextField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let tf = KeyCommandTextField()
 
+        // ✅ 文字色/カーソル色
+        tf.textColor = inkColor
+        tf.tintColor = inkColor
+
+        // ✅ placeholder 色
         tf.attributedPlaceholder = NSAttributedString(
             string: placeholder,
             attributes: [
-                .foregroundColor: UIColor.secondaryLabel.withAlphaComponent(0.09)
+                .foregroundColor: placeholderColor
             ]
         )
 
@@ -67,12 +75,30 @@ struct SelectAllTextField: UIViewRepresentable {
         tf.addTarget(context.coordinator, action: #selector(Coordinator.editChanged(_:)), for: .editingChanged)
         tf.addTarget(context.coordinator, action: #selector(Coordinator.editDidBegin(_:)), for: .editingDidBegin)
 
+    #if DEBUG
+    let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    if !isPreview {
         tf.inputAccessoryView = NavigationDockController.shared.toolbar
-        return tf
+    }
+    #else
+    tf.inputAccessoryView = NavigationDockController.shared.toolbar
+    #endif
+
+    return tf
     }
 
     func updateUIView(_ uiView: UITextField, context: Context) {
         if uiView.text != text { uiView.text = text }
+
+        // ✅ 色は毎回同期（テーマ変更/ダーク切替に追従）
+        if uiView.textColor != inkColor { uiView.textColor = inkColor }
+        if uiView.tintColor != inkColor { uiView.tintColor = inkColor }
+
+        // placeholder は毎回上書きしてOK（軽い）
+        uiView.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: placeholderColor]
+        )
 
         // ✅ nav は毎回更新（一本道化）
         context.coordinator.updateNavHandlers(nav: config.nav)
@@ -98,12 +124,9 @@ struct SelectAllTextField: UIViewRepresentable {
         }
     }
 
-
-
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     // MARK: - Coordinator
-
     final class Coordinator: NSObject, UITextFieldDelegate, NavigationDockDelegate {
 
         var parent: SelectAllTextField
@@ -114,42 +137,44 @@ struct SelectAllTextField: UIViewRepresentable {
 
         private(set) var isActive = false
 
+        private var isPreview: Bool {
+            ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        }
+
         init(_ parent: SelectAllTextField) {
             self.parent = parent
             super.init()
         }
 
-        func updateNavHandlers(nav: Config.Nav) {
-            self.nav = nav
-        }
+        func updateNavHandlers(nav: Config.Nav) { self.nav = nav }
 
         func textFieldDidBeginEditing(_ textField: UITextField) {
             isActive = true
             isBecoming = false
             activeTextField = textField
-            NavigationDockController.shared.delegate = self
+
+            // ✅ Preview中は Dock シングルトンを触らない
+            if !isPreview {
+                NavigationDockController.shared.delegate = self
+            }
 
             parent.config.onDidBecomeFirstResponder?()
 
             if let focus = parent.config.focus {
-                focus.onReport(focus.rowId, focus.field)   // ← “報告”だけ
+                focus.onReport(focus.rowId, focus.field)
             }
         }
 
-        // ✅ Tab / Shift+Tab も薄く：ただ命令を呼ぶだけ
         func navRightByTab()     { nav.right?() }
         func navLeftByShiftTab() { nav.left?()  }
 
-        // MARK: - NavigationDockDelegate（薄く）
         func navDone()  { activeTextField?.resignFirstResponder(); nav.done?() }
         func navUp()    { nav.up?() }
         func navDown()  { nav.down?() }
         func navLeft()  { nav.left?() }
         func navRight() { nav.right?() }
-        // ⚠️通知だけでRouterを触らない事！
         func navRepeatBegan(direction: String) { nav.repeatBegan?(direction) }
         func navRepeatEnded() { nav.repeatEnded?() }
-
 
         @objc func editChanged(_ sender: UITextField) {
             parent.text = sender.text ?? ""
@@ -169,13 +194,15 @@ struct SelectAllTextField: UIViewRepresentable {
         func textFieldDidEndEditing(_ textField: UITextField) {
             isActive = false
             isBecoming = false
-            if NavigationDockController.shared.delegate === self {
+
+            // ✅ Preview中は shared を触らない
+            if !isPreview, NavigationDockController.shared.delegate === self {
                 NavigationDockController.shared.delegate = nil
             }
         }
     }
 
-    
+
     // MARK: - Tab Shift+Tab対応ロジック
     private final class KeyCommandTextField: UITextField {
         var onTab: (() -> Void)?
@@ -183,15 +210,11 @@ struct SelectAllTextField: UIViewRepresentable {
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             if let key = presses.first?.key, key.keyCode == .keyboardTab {
-                if key.modifierFlags.contains(.shift) {
-                    onShiftTab?()
-                } else {
-                    onTab?()
-                }
-                return // ✅ ここで標準のフォーカス移動を“食う”
+                if key.modifierFlags.contains(.shift) { onShiftTab?() }
+                else { onTab?() }
+                return
             }
             super.pressesBegan(presses, with: event)
         }
     }
-
 }
