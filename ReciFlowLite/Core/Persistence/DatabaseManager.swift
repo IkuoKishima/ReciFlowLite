@@ -1418,3 +1418,177 @@ extension DatabaseManager {
     }
 }
 #endif
+
+
+// MARK: - DBから「全レコード＋全ingredient_rows」を吸い上げる関数
+extension DatabaseManager {
+
+    // ✅ 完全エクスポート：削除済みも含めて全recipesを返す
+    func fetchAllRecipesIncludingDeleted() async -> [Recipe] {
+        await withCheckedContinuation { cont in
+            queue.async { [weak self] in
+                guard let self, let db = self.db else {
+                    cont.resume(returning: [])
+                    return
+                }
+
+                let sql = """
+                SELECT id, title, memo, createdAt, updatedAt, deletedAt
+                FROM recipes
+                ORDER BY createdAt DESC;
+                """
+
+                var result: [Recipe] = []
+                var stmt: OpaquePointer?
+
+                if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt {
+                    defer { sqlite3_finalize(stmt) }
+
+                    while sqlite3_step(stmt) == SQLITE_ROW {
+                        guard
+                            let idC = sqlite3_column_text(stmt, 0),
+                            let titleC = sqlite3_column_text(stmt, 1),
+                            let memoC = sqlite3_column_text(stmt, 2)
+                        else { continue }
+
+                        let idStr = String(cString: idC)
+                        guard let id = UUID(uuidString: idStr) else { continue }
+
+                        let title = String(cString: titleC)
+                        let memo  = String(cString: memoC)
+                        let createdAt = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 3))
+                        let updatedAt = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
+
+                        // deletedAtはNULLの可能性あり
+                        let deletedAt: Date? = {
+                            if sqlite3_column_type(stmt, 5) == SQLITE_NULL { return nil }
+                            return Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5))
+                        }()
+
+                        // ここはあなたの Recipe 定義に合わせて調整
+                        var r = Recipe(id: id, title: title, memo: memo, createdAt: createdAt, updatedAt: updatedAt)
+                        r.deletedAt = deletedAt   // ✅ Recipeに deletedAt がある前提（無ければ追加するのがおすすめ）
+                        result.append(r)
+                    }
+                } else {
+                    DBLOG("❌ fetchAllRecipesIncludingDeleted prepare error: \(String(cString: sqlite3_errmsg(db)))")
+                }
+
+                cont.resume(returning: result)
+            }
+        }
+    }
+
+    // ✅ 特定recipeのingredient_rowsを “エクスポート用DTO” で取る（orderIndex順を保証）
+    func fetchIngredientRowsForExport(recipeId: UUID) async -> [RFExportIngredientRow] {
+        await withCheckedContinuation { cont in
+            queue.async { [weak self] in
+                guard let self, let db = self.db else {
+                    cont.resume(returning: [])
+                    return
+                }
+
+                let sql = """
+                SELECT id, kind, orderIndex, blockId, title, name, amount, unit
+                FROM ingredient_rows
+                WHERE recipeId = ?
+                ORDER BY orderIndex ASC;
+                """
+
+                var out: [RFExportIngredientRow] = []
+                var stmt: OpaquePointer?
+
+                if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt {
+                    defer { sqlite3_finalize(stmt) }
+                    sqlite3_bind_text(stmt, 1, recipeId.uuidString, -1, SQLITE_TRANSIENT)
+
+                    while sqlite3_step(stmt) == SQLITE_ROW {
+                        guard let idC = sqlite3_column_text(stmt, 0) else { continue }
+                        let id = UUID(uuidString: String(cString: idC)) ?? UUID()
+
+                        let kindRaw = Int(sqlite3_column_int(stmt, 1))
+                        let kind = RFExportIngredientRow.Kind(rawValue: kindRaw) ?? .single
+                        let orderIndex = Int(sqlite3_column_int(stmt, 2))
+
+                        let blockId: UUID? = {
+                            guard sqlite3_column_type(stmt, 3) != SQLITE_NULL,
+                                  let c = sqlite3_column_text(stmt, 3) else { return nil }
+                            return UUID(uuidString: String(cString: c))
+                        }()
+
+                        func textOrNil(_ idx: Int32) -> String? {
+                            guard sqlite3_column_type(stmt, idx) != SQLITE_NULL,
+                                  let c = sqlite3_column_text(stmt, idx) else { return nil }
+                            return String(cString: c)
+                        }
+
+                        let row = RFExportIngredientRow(
+                            id: id,
+                            kind: kind,
+                            orderIndex: orderIndex,
+                            blockId: blockId,
+                            title: textOrNil(4),
+                            name: textOrNil(5),
+                            amount: textOrNil(6),
+                            unit: textOrNil(7)
+                        )
+                        out.append(row)
+                    }
+                } else {
+                    DBLOG("❌ fetchIngredientRowsForExport prepare error: \(String(cString: sqlite3_errmsg(db)))")
+                }
+
+                cont.resume(returning: out)
+            }
+        }
+    }
+}
+
+
+// MARK: - DatabaseManagerに「エクスポート生成」を追加
+extension DatabaseManager {
+
+    /// ✅ 全データを JSON にして返す（保存はView側で行う）
+    func makeExportJSONData() async -> Data? {
+        // 1) 全レシピ（削除含む）
+        let recipes = await fetchAllRecipesIncludingDeleted()
+
+        // 2) 各レシピのingredient_rows
+        var exportRecipes: [RFExportRecipe] = []
+        exportRecipes.reserveCapacity(recipes.count)
+
+        for r in recipes {
+            let rows = await fetchIngredientRowsForExport(recipeId: r.id)
+
+            let export = RFExportRecipe(
+                id: r.id,
+                title: r.title,
+                memo: r.memo,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+                deletedAt: r.deletedAt,
+                ingredientRows: rows
+            )
+            exportRecipes.append(export)
+        }
+
+        let pkg = RFExportPackage(
+            schemaVersion: 1,
+            exportedAt: Date(),
+            app: "ReciFlowLite",
+            recipes: exportRecipes
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            return try encoder.encode(pkg)
+        } catch {
+            DBLOG("❌ export encode failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+}
+
+

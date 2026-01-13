@@ -5,54 +5,66 @@ import SwiftUI
 struct RecipeListView: View {
     @ObservedObject var store: RecipeStore
     @Binding var path: [Route]
+    
+    // エクスポート状態
+    @State private var exportURL: URL?
+    @State private var showShare = false
+    @State private var isExporting = false
 
     var body: some View {
-        List {
-            ForEach(store.recipes) { recipe in
-                Button {
-#if DEBUG
-                    let t0 = CFAbsoluteTimeGetCurrent()
-                    print("[DEBUG] tap row start", recipe.id)
-#endif
-                    path.append(.edit(recipe.id))
-#if DEBUG
-                    print("[DEBUG] tap row end", CFAbsoluteTimeGetCurrent() - t0)
-#endif
-                } label: {
-                    HStack(spacing: 0) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(recipe.title.isEmpty ? "New Recipe" : recipe.title)
-                                .font(.headline)
-                            Text("Updated: \(recipe.updatedAt.formatted(date: .numeric, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+        ZStack(alignment: .top) {
 
-                        Spacer(minLength: 0)
+            // MARK: - リスト表示部分 -
+            List {
+                ForEach(store.recipes) { recipe in
+                    Button {
+    #if DEBUG
+                        let t0 = CFAbsoluteTimeGetCurrent()
+                        print("[DEBUG] tap row start", recipe.id)
+    #endif
+                        path.append(.edit(recipe.id))
+    #if DEBUG
+                        print("[DEBUG] tap row end", CFAbsoluteTimeGetCurrent() - t0)
+    #endif
+                    } label: {
+                        HStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(recipe.title.isEmpty ? "New Recipe" : recipe.title)
+                                    .font(.headline)
+                                Text("Updated: \(recipe.updatedAt.formatted(date: .numeric, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 16)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 16)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                .onDelete { offsets in
+                    Task { @MainActor in
+                        store.requestDelete(at: offsets)
+                    }
+                }
             }
-            // ✅ 削除
-            .onDelete { offsets in
-                Task { @MainActor in
-                    store.requestDelete(at: offsets)
-                }
+            .disabled(store.isLoading)
+
+        }
+        .sheet(isPresented: $showShare) {
+            if let exportURL {
+                ShareSheet(items: [exportURL])
             }
         }
-        // 👇 List 自体を無効化
-        .disabled(store.isLoading)
 
-        // ✅ 起動ロード中オーバーレイ（List全体を覆う）
+        // ✅ 起動ロード中オーバーレイ（全体を覆う）
         .overlay {
             if store.isLoading {
                 ZStack {
                     Color.black.opacity(0.08)
                         .ignoresSafeArea()
-                        .allowsHitTesting(true) // うっかり指を触れた感も消しておく
+                        .allowsHitTesting(true)
                     ProgressView("Loading…")
                         .padding(16)
                         .background(.ultraThinMaterial)
@@ -61,9 +73,8 @@ struct RecipeListView: View {
                 .transition(.opacity)
             }
         }
-        
-        
-        // ✅ 空状態（初回ユーザー対策）
+
+        // ✅ 空状態
         .overlay {
             if !store.isLoading && store.recipes.isEmpty {
                 ContentUnavailableView {
@@ -84,9 +95,35 @@ struct RecipeListView: View {
                 .transition(.opacity)
             }
         }
+        // ✅ データドック（Export / Import）
+        .overlay(alignment: .bottomLeading) {
+            DataDockView(
+                isLoading: store.isLoading,
+                isExporting: isExporting,
+                onExport: {
+                    Task {
+                        isExporting = true
+                        defer { isExporting = false }
 
-
-        // ✅ Undoトースト（下部）
+                        guard let data = await DatabaseManager.shared.makeExportJSONData() else { return }
+                        do {
+                            let url = try ExportFileWriter.writeTempExportFile(data: data)
+                            exportURL = url
+                            showShare = true
+                        } catch {
+                            DBLOG("❌ writeTempExportFile failed: \(error.localizedDescription)")
+                        }
+                    }
+                },
+                onImport: {
+                    // 今は未実装：将来ここにインポート導線を足す
+                }
+            )
+            .padding(.leading, 18)
+            .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
+            .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
+        }
+        // ✅ Undoトースト
         .overlay(alignment: .bottom) {
             if store.pendingUndo != nil {
                 HStack {
@@ -111,7 +148,6 @@ struct RecipeListView: View {
             }
         }
 
-        // 追加ボタン
         // ✅ 追加ボタン
         .overlay(alignment: .bottomTrailing) {
             GlassIconButton(
@@ -130,6 +166,61 @@ struct RecipeListView: View {
             .padding(.trailing, 18)
             .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
             .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
+        }
+    }
+    // バックアップボタン表示部分の追加
+    private struct DataDockView: View {
+        let isLoading: Bool
+        let isExporting: Bool
+        let onExport: () -> Void
+        let onImport: () -> Void
+
+        var body: some View {
+            HStack(spacing: 10) {
+                // Export
+                GlassIconButton(
+                    symbol: isExporting ? "arrow.up.doc.fill" : "arrow.up.doc",
+                    action: onExport,
+                    hitSize: 44,
+                    visualDiameter: 44
+                )
+                .disabled(isLoading || isExporting)
+                .opacity((isLoading || isExporting) ? 0.35 : 1.0)
+
+                // Import（次回予定を “UIで示す”）
+                GlassIconButton(
+                    symbol: "arrow.down.doc",
+                    action: onImport,
+                    hitSize: 44,
+                    visualDiameter: 44
+                )
+                .disabled(true)
+                .opacity(0.22)
+                .overlay(alignment: .topTrailing) {
+                    Text("Soon")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule().strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                        }
+                        .offset(x: 6, y: -6)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            }
+            // 誤タップ防止：土台がヒット領域の境界になる
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(radius: 6, y: 2)
+            .accessibilityElement(children: .contain)
         }
     }
 }
