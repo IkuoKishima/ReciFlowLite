@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		90326DE32F11E1F800EBCE5F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326DDD2F11E1F800EBCE5F /* ContentView.swift */; };
 		90326E052F136F8600EBCE5F /* EngineCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E042F136F8600EBCE5F /* EngineCommand.swift */; };
 		90379E6A2EFBD07100F72F6B /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 90379E692EFBD07100F72F6B /* SQLite */; };
 		90379E802EFBD12A00F72F6B /* RightRailControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E6F2EFBD12A00F72F6B /* RightRailControls.swift */; };
@@ -54,6 +55,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		90326DDD2F11E1F800EBCE5F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		90326E042F136F8600EBCE5F /* EngineCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineCommand.swift; sourceTree = "<group>"; };
 		90379E3E2EFBCFE400F72F6B /* ReciFlowLite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReciFlowLite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		90379E4B2EFBCFE600F72F6B /* ReciFlowLiteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReciFlowLiteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -80,7 +82,7 @@
 		90379E952EFBD7F400F72F6B /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		90379E972EFBE81100F72F6B /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
 		904805CB2EFE003C00D5B784 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		90FBA51D2F0B66F200E4432E /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CHANGELOG.md; sourceTree = "<group>"; };
+		90FBA51D2F0B66F200E4432E /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
 		90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationDockDelegate.swift; sourceTree = "<group>"; };
 		90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassIconButton.swift; sourceTree = "<group>"; };
 		90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCoordinate.swift; sourceTree = "<group>"; };
@@ -131,33 +133,134 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		90326E132F15B10500EBCE5F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				90326DDD2F11E1F800EBCE5F /* ContentView.swift */,
+				90379E702EFBD12A00F72F6B /* Route.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		90326E142F15B19500EBCE5F /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				90326E152F15B1B900EBCE5F /* Recipes */,
+				90326E182F15B26E00EBCE5F /* IngredientEngine */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		90326E152F15B1B900EBCE5F /* Recipes */ = {
+			isa = PBXGroup;
+			children = (
+				90326E162F15B1E600EBCE5F /* RecipeList */,
+				90326E172F15B20900EBCE5F /* RecipeEdit */,
+				90379E782EFBD12A00F72F6B /* RecipeStore.swift */,
+			);
+			path = Recipes;
+			sourceTree = "<group>";
+		};
+		90326E162F15B1E600EBCE5F /* RecipeList */ = {
+			isa = PBXGroup;
+			children = (
+				90379E7E2EFBD12A00F72F6B /* RecipeListView.swift */,
+			);
+			path = RecipeList;
+			sourceTree = "<group>";
+		};
+		90326E172F15B20900EBCE5F /* RecipeEdit */ = {
+			isa = PBXGroup;
+			children = (
+				90379E7D2EFBD12A00F72F6B /* RecipeEditView.swift */,
+			);
+			path = RecipeEdit;
+			sourceTree = "<group>";
+		};
+		90326E182F15B26E00EBCE5F /* IngredientEngine */ = {
+			isa = PBXGroup;
+			children = (
+				90379E7A2EFBD12A00F72F6B /* IngredientEngineView.swift */,
+				90379E772EFBD12A00F72F6B /* IngredientEngineStore.swift */,
+				90326E042F136F8600EBCE5F /* EngineCommand.swift */,
+				90FBA55F2F0D4D3F00E4432E /* FocusRouter.swift */,
+				90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */,
+				90326E192F15B2C200EBCE5F /* Components */,
+			);
+			path = IngredientEngine;
+			sourceTree = "<group>";
+		};
+		90326E192F15B2C200EBCE5F /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				90379E7C2EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift */,
+				90379E6F2EFBD12A00F72F6B /* RightRailControls.swift */,
+				90379E752EFBD12A00F72F6B /* UIKitRightDock.swift */,
+				90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		90326E1C2F15B4AB00EBCE5F /* CoreGroups */ = {
+			isa = PBXGroup;
+			children = (
+				90326E1D2F15B4DB00EBCE5F /* Models */,
+				90326E1E2F15B51800EBCE5F /* Persistence */,
+				90326E202F15C4F600EBCE5F /* UIComponents */,
+			);
+			path = CoreGroups;
+			sourceTree = "<group>";
+		};
+		90326E1D2F15B4DB00EBCE5F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				90379E712EFBD12A00F72F6B /* Recipe.swift */,
+				90379E732EFBD12A00F72F6B /* IngredientRow.swift */,
+				90379E722EFBD12A00F72F6B /* IngredientItem.swift */,
+				90379E742EFBD12A00F72F6B /* IngredientBlock.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		90326E1E2F15B51800EBCE5F /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				90379E952EFBD7F400F72F6B /* DatabaseManager.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		90326E202F15C4F600EBCE5F /* UIComponents */ = {
+			isa = PBXGroup;
+			children = (
+				90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */,
+				90379E7F2EFBD12A00F72F6B /* BracketPartView.swift */,
+				90379E6E2EFBD12A00F72F6B /* RecipeMetaStrip.swift */,
+				90379E6D2EFBD12A00F72F6B /* MaterialTheme.swift */,
+				90379E792EFBD12A00F72F6B /* LoadingView.swift */,
+			);
+			path = UIComponents;
+			sourceTree = "<group>";
+		};
+		90326E212F15C55E00EBCE5F /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				90379E972EFBE81100F72F6B /* DebugLog.swift */,
+				90379E6C2EFBD12A00F72F6B /* Keyboard.swift */,
+				90379E762EFBD12A00F72F6B /* SelectAllTextField.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
 		90379E352EFBCFE400F72F6B = {
 			isa = PBXGroup;
 			children = (
 				90FBA51D2F0B66F200E4432E /* CHANGELOG.md */,
 				904805CB2EFE003C00D5B784 /* README.md */,
-				90379E972EFBE81100F72F6B /* DebugLog.swift */,
-				90379E732EFBD12A00F72F6B /* IngredientRow.swift */,
-				90379E6C2EFBD12A00F72F6B /* Keyboard.swift */,
-				90379E702EFBD12A00F72F6B /* Route.swift */,
-				90379E6D2EFBD12A00F72F6B /* MaterialTheme.swift */,
-				90379E6E2EFBD12A00F72F6B /* RecipeMetaStrip.swift */,
-				90379E952EFBD7F400F72F6B /* DatabaseManager.swift */,
-				90379E712EFBD12A00F72F6B /* Recipe.swift */,
-				90379E722EFBD12A00F72F6B /* IngredientItem.swift */,
-				90379E742EFBD12A00F72F6B /* IngredientBlock.swift */,
-				90379E7F2EFBD12A00F72F6B /* BracketPartView.swift */,
-				90379E752EFBD12A00F72F6B /* UIKitRightDock.swift */,
-				90379E782EFBD12A00F72F6B /* RecipeStore.swift */,
-				90FBA55B2F0CC6BE00E4432E /* GlassIconButton.swift */,
-				90379E772EFBD12A00F72F6B /* IngredientEngineStore.swift */,
-				90379E6F2EFBD12A00F72F6B /* RightRailControls.swift */,
-				90FBA5592F0CC2CA00E4432E /* NavigationDockDelegate.swift */,
-				90379E762EFBD12A00F72F6B /* SelectAllTextField.swift */,
-				90FBA55F2F0D4D3F00E4432E /* FocusRouter.swift */,
-				90326E042F136F8600EBCE5F /* EngineCommand.swift */,
-				90FBA55D2F0D4C5900E4432E /* FocusCoordinate.swift */,
-				90FBA5582F0CC24500E4432E /* View */,
+				90326E132F15B10500EBCE5F /* App */,
+				90326E142F15B19500EBCE5F /* Features */,
+				90326E1C2F15B4AB00EBCE5F /* CoreGroups */,
+				90326E212F15C55E00EBCE5F /* Utilities */,
 				90379E402EFBCFE400F72F6B /* ReciFlowLite */,
 				90379E4E2EFBCFE600F72F6B /* ReciFlowLiteTests */,
 				90379E582EFBCFE600F72F6B /* ReciFlowLiteUITests */,
@@ -173,18 +276,6 @@
 				90379E552EFBCFE600F72F6B /* ReciFlowLiteUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		90FBA5582F0CC24500E4432E /* View */ = {
-			isa = PBXGroup;
-			children = (
-				90379E7A2EFBD12A00F72F6B /* IngredientEngineView.swift */,
-				90379E7C2EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift */,
-				90379E7D2EFBD12A00F72F6B /* RecipeEditView.swift */,
-				90379E7E2EFBD12A00F72F6B /* RecipeListView.swift */,
-				90379E792EFBD12A00F72F6B /* LoadingView.swift */,
-			);
-			path = View;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -345,6 +436,7 @@
 				90379E842EFBD12A00F72F6B /* RecipeMetaStrip.swift in Sources */,
 				90379E852EFBD12A00F72F6B /* IngredientRow.swift in Sources */,
 				90379E862EFBD12A00F72F6B /* RecipeStore.swift in Sources */,
+				90326DE32F11E1F800EBCE5F /* ContentView.swift in Sources */,
 				90379E872EFBD12A00F72F6B /* IngredientEngineView.swift in Sources */,
 				90379E882EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift in Sources */,
 				90FBA55A2F0CC2CA00E4432E /* NavigationDockDelegate.swift in Sources */,

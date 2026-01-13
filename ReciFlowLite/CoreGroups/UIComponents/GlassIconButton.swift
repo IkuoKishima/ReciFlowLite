@@ -195,11 +195,6 @@ private struct GlassIconButtonPreviewGallery: View {
                     hitSize: 44,
                     visualDiameter: 34
                 )
-//                GlassIconButton(
-//                    symbol: "keyboard.chevron.compact.down",
-//                    action: {},
-//                    diameter: diameter
-//                )
                 GlassIconButton(
                     symbol: "chevron.up",
                     action: { /* ... */ },
