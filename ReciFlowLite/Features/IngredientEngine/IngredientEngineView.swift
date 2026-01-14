@@ -37,16 +37,33 @@ struct IngredientEngineView: View {
     var onSwipeRight: () -> Void = {}
     var onDelete: () -> Void = {}   // 左の削除領域用（必要なら）
 
-    // MARK: - キーボード閉じ関数（確実版）
+    // MARK: - キーボード閉じ関数
     private func dismissKeyboard() {
     #if canImport(UIKit)
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
-            .first(where: { $0.isKeyWindow })?
-            .endEditing(true)
+            .forEach { $0.endEditing(true) }
+//            .first(where: { $0.isKeyWindow })?
+//            .endEditing(true)             //強制的に firstResponder を辞めさせる
     #endif
     }
+    // 遷移共通関数
+    private func leaveEngine(_ action: @escaping () -> Void) {
+        // ① フォーカスを落とす（復活防止）
+        router.clear()
+
+        // ② キーボードを確実に落とす（全window）
+        dismissKeyboard()
+
+        // ③ “閉じが反映されてから”遷移（1runloop + 少し）
+        DispatchQueue.main.async {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                action()
+            }
+        }
+    }
+
 
 
 
@@ -471,48 +488,7 @@ struct IngredientEngineView: View {
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
         .overlay(alignment: .topTrailing) {
-            // ① 土台：右が濃く、左へ霞む（帯幅を制御）
-//                    LinearGradient(
-//                        colors: [
-//                            Color.brown.opacity(0.80), // 紙の濃い端
-//                            Color.brown.opacity(0.35),
-//                            Color.brown.opacity(0.08),
-//                            Color.clear
-//                        ],
-//                        startPoint: .trailing,
-//                        endPoint: .leading
-//                    )
-//                    .frame(width: 40 + 4) // 44=当たり判定 + 霞み
-//                    .ignoresSafeArea()
-//                    .allowsHitTesting(false)
-
-                    // ② 縁のハイライト（ガラスの“角”）
-//                    Rectangle()
-//                        .fill(Color.white.opacity(0.12))
-//                        .frame(width: 1)
-//                        .offset(x: -2)
-//                        .ignoresSafeArea()
-//                        .allowsHitTesting(false)
-
-//                    // ③ 反射線（細い光。あると急にガラスになる）
-//                    LinearGradient(
-//                        colors: [
-//                            Color.white.opacity(0.18),
-//                            Color.clear
-//                        ],
-//                        startPoint: .top,
-//                        endPoint: .bottom
-//                    )
-//                    .frame(width: 10)      // 反射線の太さ
-//                    .offset(x: -10)        // 右端から少し内側
-//                    .blendMode(.screen)
-//                    .ignoresSafeArea()
-//                    .allowsHitTesting(false)
-
-            
-            
-            
-            
+           
             UIKitRightDock(
                 mode: .back,
                 showsDelete: true,
@@ -531,29 +507,12 @@ struct IngredientEngineView: View {
                 onAddBlock:  { perform(.addBlock) },
 
 
-                onPrimary: {
-                    router.clear()
-                    dismissKeyboard()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                        onPrimary()
-                    }
-                },
-                onHome: {
-                    router.clear()
-                    dismissKeyboard()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                        onHome()
-                    }
-                },
+                onPrimary: { leaveEngine { onPrimary() } },
+                onHome:    { leaveEngine { onHome() } },
 
-                onSwipeLeft: {
-                    dismissKeyboard()
-                    onSwipeLeft()
-                },
-                onSwipeRight: {
-                    dismissKeyboard()
-                    onSwipeRight()
-                },
+                // スワイプも「同じ出口処理」に統一
+                onSwipeLeft:  { leaveEngine { onSwipeLeft() } },
+                onSwipeRight: { leaveEngine { onSwipeRight() } },
                 centerYRatio: 0.28, minBottomPadding: 0
             )
             // 右端に“常駐する領域”を確保
@@ -571,8 +530,8 @@ struct IngredientEngineView: View {
                 GlassIconButton(symbol: "paintpalette", action: {
                     showPaperSheet = true
                 })
-                .frame(width: 34, height: 34)   // ✅ ナビバーに収まるサイズ
-                .contentShape(Rectangle())      // ✅ タップ範囲を確保（好みで）
+                .frame(width: 34, height: 34)   // ナビバーに収まるサイズ
+                .contentShape(Rectangle())      // タップ範囲を確保（好みで）
                 .accessibilityLabel("紙色を変更")
             }
         }
@@ -580,10 +539,6 @@ struct IngredientEngineView: View {
             PaperPickerSheet(themeStore: themeStore)
                 .presentationDetents([.medium])
         }
-
-
-        
-
     }
     //✅ここはボディの外
    
@@ -741,7 +696,7 @@ struct IngredientEngineView: View {
                         placeholder: "材料",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
                         inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
 
                         config: .init(
                             onDidBecomeFirstResponder: { },
@@ -774,7 +729,7 @@ struct IngredientEngineView: View {
                         textAlignment: .right,           // ← 差分①
                         keyboardType: .decimalPad,       // ← 差分②
                         inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                         config: .init(
                             onCommit: { perform(.enterNext) },
                             focus: .init(
@@ -801,7 +756,7 @@ struct IngredientEngineView: View {
                         placeholder: "単位",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
                         inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
@@ -870,7 +825,7 @@ struct IngredientEngineView: View {
                             placeholder: "材料",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
                             inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
@@ -901,7 +856,7 @@ struct IngredientEngineView: View {
                             textAlignment: .right,           // ← 差分①
                             keyboardType: .decimalPad,       // ← 差分②
                             inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                             config: .init(
                                 onCommit: { perform(.enterNext) },
                                 focus: .init(
@@ -927,7 +882,7 @@ struct IngredientEngineView: View {
                             placeholder: "単位",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
                             inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },

@@ -36,7 +36,7 @@ struct IngredientBlockHeaderRowView: View {
                             router.current?.rowId == block.id &&
                             router.current?.field == .headerTitle,
                         inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.1), //透かし文字
+                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
                         config: .init(
                             onCommit: { perform(.enterNext) }, // Enter の扱いは方針次第（とりあえず既存へ）
                             focus: .init(
