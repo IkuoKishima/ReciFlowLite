@@ -13,8 +13,8 @@
 		90326E252F15D33A00EBCE5F /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E242F15D33A00EBCE5F /* ThemeStore.swift */; };
 		90326E272F15D42400EBCE5F /* PaperPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E262F15D42400EBCE5F /* PaperPickerSheet.swift */; };
 		90326E2A2F15F32D00EBCE5F /* ExportFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E292F15F32D00EBCE5F /* ExportFileWriter.swift */; };
-		90326E2C2F15F35B00EBCE5F /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E2B2F15F35B00EBCE5F /* ShareSheet.swift */; };
 		90326E2D2F15FD9100EBCE5F /* ExportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E282F15F26B00EBCE5F /* ExportModels.swift */; };
+		90326E4F2F18F7AC00EBCE5F /* ExportDocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90326E4E2F18F7AC00EBCE5F /* ExportDocumentPicker.swift */; };
 		90379E6A2EFBD07100F72F6B /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 90379E692EFBD07100F72F6B /* SQLite */; };
 		90379E802EFBD12A00F72F6B /* RightRailControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E6F2EFBD12A00F72F6B /* RightRailControls.swift */; };
 		90379E812EFBD12A00F72F6B /* RecipeEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90379E7D2EFBD12A00F72F6B /* RecipeEditView.swift */; };
@@ -68,7 +68,7 @@
 		90326E262F15D42400EBCE5F /* PaperPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperPickerSheet.swift; sourceTree = "<group>"; };
 		90326E282F15F26B00EBCE5F /* ExportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportModels.swift; sourceTree = "<group>"; };
 		90326E292F15F32D00EBCE5F /* ExportFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFileWriter.swift; sourceTree = "<group>"; };
-		90326E2B2F15F35B00EBCE5F /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		90326E4E2F18F7AC00EBCE5F /* ExportDocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportDocumentPicker.swift; sourceTree = "<group>"; };
 		90379E3E2EFBCFE400F72F6B /* ReciFlowLite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReciFlowLite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		90379E4B2EFBCFE600F72F6B /* ReciFlowLiteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReciFlowLiteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		90379E552EFBCFE600F72F6B /* ReciFlowLiteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReciFlowLiteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +102,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		90326E4D2F18E83800EBCE5F /* docs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = docs;
+			sourceTree = "<group>";
+		};
 		90379E402EFBCFE400F72F6B /* ReciFlowLite */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ReciFlowLite;
@@ -238,8 +243,8 @@
 		90326E1E2F15B51800EBCE5F /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				90326E4E2F18F7AC00EBCE5F /* ExportDocumentPicker.swift */,
 				90326E282F15F26B00EBCE5F /* ExportModels.swift */,
-				90326E2B2F15F35B00EBCE5F /* ShareSheet.swift */,
 				90326E292F15F32D00EBCE5F /* ExportFileWriter.swift */,
 				90379E952EFBD7F400F72F6B /* DatabaseManager.swift */,
 			);
@@ -273,6 +278,7 @@
 		90379E352EFBCFE400F72F6B = {
 			isa = PBXGroup;
 			children = (
+				90326E4D2F18E83800EBCE5F /* docs */,
 				90FBA51D2F0B66F200E4432E /* CHANGELOG.md */,
 				904805CB2EFE003C00D5B784 /* README.md */,
 				90326E132F15B10500EBCE5F /* App */,
@@ -454,13 +460,13 @@
 				90FBA55E2F0D4C5900E4432E /* FocusCoordinate.swift in Sources */,
 				90379E842EFBD12A00F72F6B /* RecipeMetaStrip.swift in Sources */,
 				90379E852EFBD12A00F72F6B /* IngredientRow.swift in Sources */,
-				90326E2C2F15F35B00EBCE5F /* ShareSheet.swift in Sources */,
 				90379E862EFBD12A00F72F6B /* RecipeStore.swift in Sources */,
 				90326DE32F11E1F800EBCE5F /* ContentView.swift in Sources */,
 				90379E872EFBD12A00F72F6B /* IngredientEngineView.swift in Sources */,
 				90379E882EFBD12A00F72F6B /* IngredientBlockHeaderRowView.swift in Sources */,
 				90FBA55A2F0CC2CA00E4432E /* NavigationDockDelegate.swift in Sources */,
 				90326E2A2F15F32D00EBCE5F /* ExportFileWriter.swift in Sources */,
+				90326E4F2F18F7AC00EBCE5F /* ExportDocumentPicker.swift in Sources */,
 				90379E8A2EFBD12A00F72F6B /* BracketPartView.swift in Sources */,
 				90379E8C2EFBD12A00F72F6B /* IngredientBlock.swift in Sources */,
 				90326E272F15D42400EBCE5F /* PaperPickerSheet.swift in Sources */,

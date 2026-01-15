@@ -4,11 +4,19 @@ import Foundation
 
 // エクスポート全体
 struct RFExportPackage: Codable {
-    let schemaVersion: Int
+    
+    let schemaVersion: Int // Export JSON形式のバージョン（インポート互換の判断に使う）
+    let dbSchemaVersion: Int // DBスキーマ世代（SQLiteの列構成の世代）
     let exportedAt: Date
     let app: String
+
+    /// 任意（将来デバッグで超助かる）
+    let appVersion: String?
+    let build: String?
+    let summary: RFExportSummary
     let recipes: [RFExportRecipe]
 }
+
 
 // レシピ単位
 struct RFExportRecipe: Codable {
@@ -38,4 +46,17 @@ struct RFExportIngredientRow: Codable {
     let name: String?
     let amount: String?
     let unit: String?
+}
+
+struct RFExportSummary: Codable {
+    let recipesTotal: Int
+    let recipesDeleted: Int
+
+    let ingredientRowsTotal: Int
+    let rowsSingle: Int
+    let rowsBlockHeader: Int
+    let rowsBlockItem: Int
+
+    /// 正規化や検出で出た警告数（将来の診断に便利）
+    let warnings: Int
 }

@@ -8,7 +8,7 @@ struct Recipe: Identifiable, Hashable {
     var memo: String // 備考
     var createdAt: Date // 作成日
     var updatedAt: Date // 更新日
-    var deletedAt: Date? = nil // ✅ 追加（ソフト削除用）
+    var deletedAt: Date? = nil //（ソフト削除用）
 //    var ingredients: [IngredientItem] // 材料を繋げる
     
     init(

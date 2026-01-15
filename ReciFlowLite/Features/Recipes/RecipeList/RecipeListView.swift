@@ -8,8 +8,18 @@ struct RecipeListView: View {
     
     // エクスポート状態
     @State private var exportURL: URL?
-    @State private var showShare = false
     @State private var isExporting = false
+    @State private var showExportPicker = false
+    @State private var exportErrorMessage: String?
+    @State private var showExportError = false
+    @State private var exportPreviewText: String = ""
+    @State private var showExportPreview = false
+    @State private var pendingExportURL: URL?
+    @State private var exportJustCreatedAt: Date?
+    @State private var exportAlertTitle: String = "エクスポート"
+
+
+
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -52,11 +62,48 @@ struct RecipeListView: View {
             .disabled(store.isLoading)
 
         }
-        .sheet(isPresented: $showShare) {
-            if let exportURL {
-                ShareSheet(items: [exportURL])
+        .sheet(isPresented: $showExportPicker) {
+            if let url = exportURL {
+                ExportDocumentPicker(fileURL: url) { saved in
+                    Task { @MainActor in
+                        showExportPicker = false
+                        exportAlertTitle = saved ? "エクスポート完了" : "エクスポート"
+                        exportErrorMessage = saved ? "保存しました ✅" : "キャンセルしました"
+                        showExportError = true
+                        exportURL = nil
+                        pendingExportURL = nil
+                    }
+                }
             }
         }
+
+        .alert(exportAlertTitle, isPresented: $showExportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "不明なエラー")
+        }
+        
+        .alert("エクスポート確認", isPresented: $showExportPreview) {
+            Button("キャンセル", role: .cancel) {
+                pendingExportURL = nil
+                exportJustCreatedAt = nil
+            }
+            Button("保存先を選ぶ") {
+                guard let p = pendingExportURL else {
+                    showExportPreview = false
+                    exportAlertTitle = "エクスポート失敗"
+                    exportErrorMessage = "保存ファイルの準備に失敗しました（URLなし）"
+                    showExportError = true
+                    return
+                }
+                exportURL = p
+                showExportPicker = true
+            }
+        } message: {
+            Text(exportPreviewText)
+        }
+
+
 
         // ✅ 起動ロード中オーバーレイ（全体を覆う）
         .overlay {
@@ -105,16 +152,66 @@ struct RecipeListView: View {
                         isExporting = true
                         defer { isExporting = false }
 
-                        guard let data = await DatabaseManager.shared.makeExportJSONData() else { return }
+                        guard let data = await DatabaseManager.shared.makeExportJSONData() else {
+                            await MainActor.run {
+                                exportAlertTitle = "エクスポート失敗"
+                                exportErrorMessage = "エクスポートに失敗しました（データ生成）"
+                                showExportError = true
+                            }
+                            return
+                        }
+
                         do {
+                            // ① まずファイルを作る（現状の互換名でOK）
                             let url = try ExportFileWriter.writeTempExportFile(data: data)
-                            exportURL = url
-                            showShare = true
+
+                            // ② summary を decode してプレビュー文を作る
+                            let decoder = JSONDecoder()
+
+                            let fmt = ISO8601DateFormatter()
+                            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                            fmt.timeZone = TimeZone(secondsFromGMT: 0)
+
+                            decoder.dateDecodingStrategy = .custom { decoder in
+                                let c = try decoder.singleValueContainer()
+                                let s = try c.decode(String.self)
+                                guard let d = fmt.date(from: s) else {
+                                    throw DecodingError.dataCorruptedError(in: c, debugDescription: "Invalid date: \(s)")
+                                }
+                                return d
+                            }
+
+                            let pkg = try decoder.decode(RFExportPackage.self, from: data)
+
+                            await MainActor.run {
+                                pendingExportURL = url
+                                exportJustCreatedAt = Date()
+
+                                exportPreviewText =
+                """
+                保存内容（要約）
+                ・レシピ総数: \(pkg.summary.recipesTotal)
+                ・削除済み: \(pkg.summary.recipesDeleted)
+                ・材料行総数: \(pkg.summary.ingredientRowsTotal)
+                ・警告: \(pkg.summary.warnings)
+
+                この内容をファイルとして保存します。
+                保存先を選びますか？
+                """
+                                showExportPreview = true
+                            }
+
                         } catch {
-                            DBLOG("❌ writeTempExportFile failed: \(error.localizedDescription)")
+                            DBLOG("❌ export preview/decode/write failed: \(error.localizedDescription)")
+                            await MainActor.run {
+                                exportAlertTitle = "エクスポート失敗"
+                                exportErrorMessage = "書き出しに失敗しました: \(error.localizedDescription)"
+                                showExportError = true
+                            }
                         }
                     }
                 },
+
                 onImport: {
                     // 今は未実装：将来ここにインポート導線を足す
                 }

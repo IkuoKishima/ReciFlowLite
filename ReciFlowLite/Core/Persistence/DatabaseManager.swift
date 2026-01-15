@@ -68,9 +68,6 @@ final class DatabaseManager {
     }
 
 
-
-
-
     // MARK: - Open / Configure / Integrity / Recover
 
     private func openOrRecover(at url: URL, reason: String) -> Bool {
@@ -280,15 +277,17 @@ final class DatabaseManager {
     /// - 注意: これは「新DBが開けていてテーブルが作られた後」に呼ぶ
     private func restoreRecipesFromQuarantineIfPossible() {
         guard db != nil else { return }
-        
-        // ✅ 追加：新DBが空でなければ復元しない（上書き防止）
-            if countRecipes() > 0 {
+
+        // ✅ 起動時に間に合わせる：dbSync で完結させる
+        dbSync { [weak self] in
+            guard let self else { return }
+
+            // ✅ 新DBが空でなければ復元しない（上書き防止）
+            if self.countRecipesLocked() > 0 {
                 DBLOG("ℹ️ current db is not empty (recipes restore skipped)")
                 return
             }
-        // 🔁 dbAsync → dbSync（起動時に間に合わせる）
-        dbSync { [weak self] in
-            guard let self else { return }
+
             guard let candidate = self.findLatestQuarantineDBFile() else {
                 DBLOG("ℹ️ No quarantine db found (recipes restore skipped)")
                 return
@@ -309,7 +308,7 @@ final class DatabaseManager {
             }
 
             let recovered = self.readRecipes(from: qdb)
-            
+
             if recovered.isEmpty {
                 DBLOG("⚠️ No recipes recovered from quarantine db")
                 self.markQuarantineFileAsProcessed(candidate, suffix: "Empty")
@@ -326,19 +325,15 @@ final class DatabaseManager {
             }
         }
     }
+
     
     private func countRecipes() -> Int {
-        dbSync {
-            guard let db else { return 0 }
-            var stmt: OpaquePointer?
-            defer { sqlite3_finalize(stmt) }
-            if sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM recipes;", -1, &stmt, nil) != SQLITE_OK { return 0 }
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                return Int(sqlite3_column_int(stmt, 0))
-            }
-            return 0
+        dbSync { [weak self] in
+            guard let self else { return 0 }
+            return self.countRecipesLocked()
         }
     }
+
 
 
     /// Documents配下から *_Corrupted_* の最新っぽいものを1つ拾う（Recovered済みは除外）
@@ -543,6 +538,23 @@ final class DatabaseManager {
             DBLOG("⚠️ markQuarantineFileAsProcessed failed: \(error.localizedDescription)")
         }
     }
+    
+    /// ✅ queue内から呼ぶ用（syncしない）
+    private func countRecipesLocked() -> Int {
+        guard let db else { return 0 }
+
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+
+        if sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM recipes;", -1, &stmt, nil) != SQLITE_OK {
+            return 0
+        }
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return Int(sqlite3_column_int(stmt, 0))
+        }
+        return 0
+    }
+
 
 
     // MARK: - Schema / Migration
@@ -742,6 +754,45 @@ final class DatabaseManager {
             }
         }
     }
+    
+    /// ✅ Exportの直前に「DBが健全か」を保証する
+    /// - OK: そのまま続行
+    /// - NG: quarantine→作り直し→テーブル整備→（可能なら隔離からrecipes復元）→再チェック
+    /// - それでもNG: false
+    private func ensureHealthyBeforeExportLocked() -> Bool {
+        guard db != nil else { return false }
+
+        // 1) まず quick_check
+        if quickCheckIsOK() { return true }
+
+        DBLOG("⚠️ Export preflight: quick_check failed → quarantine & recreate")
+
+        // 2) 隔離して作り直し
+        closeLocked()
+        quarantineDatabaseFile(at: dbURL, reason: "export_preflight_quickcheck_failed")
+        didRecoverOnStartup = true // 「起動時」ではないが、復元を走らせたいのでON
+
+        guard open(at: dbURL) else {
+            DBLOG("❌ Export preflight: failed to open new db")
+            return false
+        }
+        configureConnection()
+
+        // 3) 最低限テーブル整備（syncを含まない locked版）
+        createTablesIfNeededLocked()
+        ensureRecipesDeletedAtColumnLocked()
+
+        // 4) 可能なら quarantine から recipes を復元（現在DBが空のときだけ）
+        //    ※この関数は dbSync を使う版なので、locked内では呼ばない
+        //    → ここでは “復元は外側で呼ぶ” 方針にする
+
+        // 5) もう一回 quick_check
+        if quickCheckIsOK() { return true }
+
+        DBLOG("❌ Export preflight: quick_check still failing after recreate")
+        return false
+    }
+
 
 
 
@@ -1550,15 +1601,53 @@ extension DatabaseManager {
 
     /// ✅ 全データを JSON にして返す（保存はView側で行う）
     func makeExportJSONData() async -> Data? {
-        // 1) 全レシピ（削除含む）
+        // ✅ export前にDB健全性を保証（必要なら隔離→作り直し）
+        let preflightOK: Bool = await withCheckedContinuation { cont in
+            queue.async { [weak self] in
+                guard let self else {
+                    cont.resume(returning: false)
+                    return
+                }
+                let ok = self.ensureHealthyBeforeExportLocked()
+                cont.resume(returning: ok)
+            }
+        }
+        // ✅ preflightで新DBに作り直した可能性があるので、隔離から recipes復元を試す（空なら復元）
+        restoreRecipesFromQuarantineIfPossible()
+
+        guard preflightOK else {
+            DBLOG("❌ Export aborted: DB is not healthy")
+            return nil
+        }
+
         let recipes = await fetchAllRecipesIncludingDeleted()
 
-        // 2) 各レシピのingredient_rows
         var exportRecipes: [RFExportRecipe] = []
         exportRecipes.reserveCapacity(recipes.count)
 
+        var warningsTotal = 0
+        var rowsTotal = 0
+        var rowsSingle = 0
+        var rowsHeader = 0
+        var rowsItem = 0
+
+        var recipesDeleted = 0
+
         for r in recipes {
-            let rows = await fetchIngredientRowsForExport(recipeId: r.id)
+            if r.deletedAt != nil { recipesDeleted += 1 }
+
+            let rawRows = await fetchIngredientRowsForExport(recipeId: r.id)
+            let (rows, warn) = normalizeExportIngredientRows(rawRows, recipeId: r.id)
+            warningsTotal += warn
+
+            rowsTotal += rows.count
+            for row in rows {
+                switch row.kind {
+                case .single: rowsSingle += 1
+                case .blockHeader: rowsHeader += 1
+                case .blockItem: rowsItem += 1
+                }
+            }
 
             let export = RFExportRecipe(
                 id: r.id,
@@ -1572,23 +1661,119 @@ extension DatabaseManager {
             exportRecipes.append(export)
         }
 
+        let defaults = UserDefaults.standard
+        let dbSchema = defaults.integer(forKey: "schemaVersion")
+
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        let summary = RFExportSummary(
+            recipesTotal: recipes.count,
+            recipesDeleted: recipesDeleted,
+            ingredientRowsTotal: rowsTotal,
+            rowsSingle: rowsSingle,
+            rowsBlockHeader: rowsHeader,
+            rowsBlockItem: rowsItem,
+            warnings: warningsTotal
+        )
+
         let pkg = RFExportPackage(
             schemaVersion: 1,
+            dbSchemaVersion: dbSchema,
             exportedAt: Date(),
             app: "ReciFlowLite",
+            appVersion: appVersion,
+            build: build,
+            summary: summary,
             recipes: exportRecipes
         )
 
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
+
+            // 小数秒つきISO8601で固定（Step4）
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            fmt.timeZone = TimeZone(secondsFromGMT: 0)
+
+            encoder.dateEncodingStrategy = .custom { date, encoder in
+                var c = encoder.singleValueContainer()
+                try c.encode(fmt.string(from: date))
+            }
+
             return try encoder.encode(pkg)
         } catch {
             DBLOG("❌ export encode failed: \(error.localizedDescription)")
             return nil
         }
     }
-}
 
+    
+    private func normalizeExportIngredientRows(_ rows: [RFExportIngredientRow], recipeId: UUID) -> ([RFExportIngredientRow], Int) {
+        var warnings = 0
+
+        // 1) orderIndexで一度ソート
+        let sorted = rows.sorted { $0.orderIndex < $1.orderIndex }
+
+        // 2) orderIndexを 0..N-1 に振り直す（欠番/重複対策）
+        var normalized: [RFExportIngredientRow] = []
+        normalized.reserveCapacity(sorted.count)
+
+        for (i, r) in sorted.enumerated() {
+
+            switch r.kind {
+            case .single:
+                break
+
+            case .blockHeader:
+                break
+
+            case .blockItem:
+                if r.blockId == nil {
+                    warnings += 1
+                    DBLOG("⚠️ Export normalize: blockItem has nil blockId (recipe=\(recipeId)) rowId=\(r.id) → convert to single")
+
+                    let converted = RFExportIngredientRow(
+                        id: r.id,
+                        kind: .single,
+                        orderIndex: i,
+                        blockId: nil,
+                        title: nil,
+                        name: r.name,
+                        amount: r.amount,
+                        unit: r.unit
+                    )
+                    normalized.append(converted)
+                    continue
+                }
+            }
+
+            let fixed = RFExportIngredientRow(
+                id: r.id,
+                kind: r.kind,
+                orderIndex: i,
+                blockId: r.blockId,
+                title: r.title,
+                name: r.name,
+                amount: r.amount,
+                unit: r.unit
+            )
+            normalized.append(fixed)
+        }
+
+        // 3) 孤立ブロックをログ検出（削除はしない）
+        let usedBlockIds = Set(normalized.compactMap { $0.kind == .blockItem ? $0.blockId : nil })
+        let headerIds = normalized.compactMap { $0.kind == .blockHeader ? $0.id : nil }
+
+        for hid in headerIds {
+            if usedBlockIds.contains(hid) == false {
+                warnings += 1
+                DBLOG("ℹ️ Export normalize: blockHeader has no items (recipe=\(recipeId)) blockId=\(hid)")
+            }
+        }
+
+        return (normalized, warnings)
+    }
+}
 
