@@ -47,6 +47,7 @@ struct SelectAllTextField: UIViewRepresentable {
 
     // ✅ 追加：色（SwiftUI → UIKit）
     var inkColor: UIColor = .label
+    
     var placeholderColor: UIColor = UIColor.secondaryLabel.withAlphaComponent(0.30)
 
     var config: Config = .empty

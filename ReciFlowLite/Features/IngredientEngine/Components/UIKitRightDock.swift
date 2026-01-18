@@ -36,8 +36,8 @@ struct UIKitRightDock: UIViewRepresentable {
 
     // layout constants
     var railWidth: CGFloat = 38 //右端のタッチ可能エリア全体の幅
-    var buttonSize: CGFloat = 30 //丸ボタンの大きさ
-    var trailingPadding: CGFloat = 11 //末尾のパディング
+    var buttonSize: CGFloat = 38 //丸ボタンの大きさ
+    var trailingPadding: CGFloat = 10 // 右からのパディング
     var verticalSpacing: CGFloat = 16 //垂直方向の間隔
     var centerYRatio: CGFloat = 0.38   // RightRailControls と同じ配置発想
     var minBottomPadding: CGFloat = 6 //キーボードとドックの干渉限界

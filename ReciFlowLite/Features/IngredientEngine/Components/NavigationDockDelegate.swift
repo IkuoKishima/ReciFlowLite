@@ -14,12 +14,20 @@ protocol NavigationDockDelegate: AnyObject {
     func navRepeatEnded()
 }
 
-
 final class NavigationDockController: NSObject {
 
     static let shared = NavigationDockController()
 
-    weak var delegate: NavigationDockDelegate?
+    // delegate が消えた瞬間に repeat が残らないようにする安全弁
+    weak var delegate: NavigationDockDelegate? {
+        didSet {
+            if delegate == nil {
+                stopRepeat()
+            }
+        }
+    }
+
+    // MARK: - Toolbar
 
     private(set) lazy var toolbar: UIToolbar = {
         let tb = UIToolbar()
@@ -33,23 +41,47 @@ final class NavigationDockController: NSObject {
         return tb
     }()
 
-    // MARK: - Long press repeat (v15 quality)
-    // 長押し連打用
+    // MARK: - Long press repeat
+
     private var repeatTimer: Timer?
     private var repeatingAction: (() -> Void)?
 
-    // ✅ 速度（v15は 0.10 / Liteは 0.08 だったので好みで）
-    private let repeatInterval: TimeInterval = 0.10 //let minInterval: CFTimeInterval = 0.10と揃える
-
-    // ✅ 安全装置（無限連打防止）
+    private let repeatInterval: TimeInterval = 0.10
     private var repeatStepCount: Int = 0
     private let maxRepeatSteps: Int = 300
 
-    // ✅ 触感（開始時だけ）
     private let longPressFeedback = UIImpactFeedbackGenerator(style: .rigid)
 
-    private override init() {}
-    
+    // MARK: - Init / Lifecycle safety
+
+    private override init() {
+        super.init()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appWillResignActive() {
+        stopRepeat()
+    }
+
+    @objc private func appDidEnterBackground() {
+        stopRepeat()
+    }
+
+    // MARK: - Tap action store（透明タップ用）
+
     private final class TapActionStore {
         static let shared = TapActionStore()
         private init() {}
@@ -69,11 +101,10 @@ final class NavigationDockController: NSObject {
         TapActionStore.shared.perform(for: sender)
     }
 
-
-    // MARK: - Actions
+    // MARK: - Tap actions
 
     @objc private func tapDone() {
-        stopRepeat() // ✅ done でも必ず止める
+        stopRepeat()
         delegate?.navDone()
     }
 
@@ -82,7 +113,8 @@ final class NavigationDockController: NSObject {
     @objc private func tapLeft()  { delegate?.navLeft() }
     @objc private func tapRight() { delegate?.navRight() }
 
-    // ✅ 必ず停止できる共通関数
+    // MARK: - Repeat control（共通停止）
+
     private func stopRepeat() {
         repeatTimer?.invalidate()
         repeatTimer = nil
@@ -90,10 +122,11 @@ final class NavigationDockController: NSObject {
         repeatStepCount = 0
     }
 
-    // Long press: 連打（v15相当の安全設計）
+    // MARK: - Long press handler（短気耐性版）
+
     @objc private func handleLongPress(_ gr: UILongPressGestureRecognizer) {
-        guard let view = gr.view else { return }
-        guard let key = view.accessibilityHint else { return }
+        guard let view = gr.view,
+              let key = view.accessibilityHint else { return }
 
         func actionClosure() -> (() -> Void) {
             switch key {
@@ -111,38 +144,49 @@ final class NavigationDockController: NSObject {
             stopRepeat()
             repeatStepCount = 0
 
+            // delegate をローカルに固定（開始瞬間の不安定さ回避）
+            guard let delegate = self.delegate else { return }
+
             longPressFeedback.prepare()
             longPressFeedback.impactOccurred(intensity: 0.9)
-            delegate?.navRepeatBegan(direction: key) // 追加：repeat開始通知
+            delegate.navRepeatBegan(direction: key)
 
             let closure = actionClosure()
             repeatingAction = closure
 
-            // （好み）最初の1発を入れるならここで1回
-            // closure()
-
-            repeatTimer = Timer.scheduledTimer(withTimeInterval: repeatInterval, repeats: true) { [weak self] _ in
+            let timer = Timer(timeInterval: repeatInterval, repeats: true) { [weak self] _ in
                 guard let self else { return }
-                self.repeatStepCount += 1
-                if self.repeatStepCount >= self.maxRepeatSteps {
-                    self.delegate?.navRepeatEnded()   // 追加：終了通知
+
+                // delegate が消えたら即停止（遷移・短気対策）
+                guard self.delegate != nil else {
                     self.stopRepeat()
                     return
                 }
+
+                self.repeatStepCount += 1
+                if self.repeatStepCount >= self.maxRepeatSteps {
+                    self.delegate?.navRepeatEnded()
+                    self.stopRepeat()
+                    return
+                }
+
                 self.repeatingAction?()
             }
 
-        case .ended, .cancelled, .failed:
-            delegate?.navRepeatEnded() // 追加：repeat終了通知
-            stopRepeat()
+            timer.tolerance = repeatInterval * 0.25
+            repeatTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
 
+        case .ended, .cancelled, .failed:
+            delegate?.navRepeatEnded()
+            stopRepeat()
 
         default:
             break
         }
     }
 
-    // MARK: - Build Items (SwiftUI視覚 + UIKit命令)
+    // MARK: - Build toolbar items
 
     private func makeItems() -> [UIBarButtonItem] {
         let flex = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
@@ -157,7 +201,7 @@ final class NavigationDockController: NSObject {
 
         let rightInset = UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil)
         rightInset.width = 30
-        // ⌨️  ↑  ←  →  ↓
+
         return [
             flex,
             done, spacer,
@@ -169,7 +213,7 @@ final class NavigationDockController: NSObject {
         ]
     }
 
-    
+    // MARK: - Glass button builder
 
     private func makeGlassItem(
         symbol: String,
@@ -177,7 +221,6 @@ final class NavigationDockController: NSObject {
         longPressKey: String? = nil
     ) -> UIBarButtonItem {
 
-        // MARK: - ボタンサイズと初期化
         let visualSize: CGFloat = 34
         let hitSize: CGFloat = 44
 
@@ -188,15 +231,13 @@ final class NavigationDockController: NSObject {
             visualDiameter: visualSize
         )
 
-
         let host = UIHostingController(rootView: visual)
         host.view.backgroundColor = .clear
         host.view.isUserInteractionEnabled = false
 
-        // ② 見た目コンテナ
         let container = UIView(frame: CGRect(x: 0, y: 0, width: visualSize, height: visualSize))
         container.backgroundColor = .clear
-        container.clipsToBounds = false // ← 透明タップ(44)をはみ出させる
+        container.clipsToBounds = false
 
         host.view.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(host.view)
@@ -208,7 +249,6 @@ final class NavigationDockController: NSObject {
             host.view.heightAnchor.constraint(equalToConstant: visualSize),
         ])
 
-        // “UIControl(透明板)” に変える（見えない）
         let touch = UIControl()
         touch.backgroundColor = .clear
         touch.translatesAutoresizingMaskIntoConstraints = false
@@ -224,7 +264,6 @@ final class NavigationDockController: NSObject {
         touch.addTarget(self, action: #selector(handleTapOverlay(_:)), for: .touchUpInside)
         TapActionStore.shared.register(action: tap, for: touch)
 
-        // 長押し
         if let key = longPressKey {
             touch.accessibilityHint = key
             let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
@@ -235,7 +274,6 @@ final class NavigationDockController: NSObject {
 
         let item = UIBarButtonItem(customView: container)
 
-        // 見た目サイズ固定（30）
         container.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             container.widthAnchor.constraint(equalToConstant: visualSize),

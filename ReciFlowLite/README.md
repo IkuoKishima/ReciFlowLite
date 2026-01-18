@@ -3,9 +3,11 @@
 現場で使える「レシピ記録・検索」iOSアプリ。  
 **素早い入力導線**と、材料入力エンジン（IngredientEngine）による編集体験、そして **データ消失を起こさない信頼性**を重視して設計しています。
 
-- App Store：<ここにリンク>
+- App Store：https://apps.apple.com/jp/app/reciflowlite/id6756988155
+ReciFlowLite
 - Platform：iOS（iPad除外）
 - Tech：Swift / SwiftUI / SQLite3
+- git：https://github.com/IkuoKishima/ReciFlowLite/releases/tag/demo-v1
 
 ---
 

@@ -27,7 +27,7 @@ struct GlassIconButton: View {
             Image(systemName: symbol)
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.primary)
-                .font(.system(size: visualDiameter * (16.0 / 44.0), weight: .semibold))
+                .font(.system(size: visualDiameter * (22.0 / 44.0), weight: .semibold))
                 .frame(width: iconBox, height: iconBox)
                 .contentShape(Circle())
         }

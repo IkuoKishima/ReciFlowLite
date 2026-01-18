@@ -11,11 +11,11 @@ struct MaterialTheme {
     static let ink   = Color(hex: "#1C1C1E")
     static let accent = Color(hex: "#F4A261")
 
-    // 🆕 ロゴ／起動画面用の淡いグラデーション
+    //  ロゴ／起動画面用の淡いグラデーション
     static let logoGradientTop    = Color(hex: "#E5F4F1")  // ほぼ白に近いミント
     static let logoGradientBottom = Color(hex: "#F9FBFF")  // うっすら青みの白
 
-    // 🆕 ロゴの背後に置く「液体のハロー」
+    //  ロゴの背後に置く「液体のハロー」
     static let logoHalo = Color.white.opacity(0.85)
 
     // ガラス設定（Liquid Glass 共通）

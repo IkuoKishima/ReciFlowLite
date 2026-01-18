@@ -1,3 +1,5 @@
+/// MARK: - IngredientBlockHeaderRowView.swift
+
 import SwiftUI
 
 struct IngredientBlockHeaderRowView: View {
@@ -7,6 +9,12 @@ struct IngredientBlockHeaderRowView: View {
     // 黒背景での文字色適用
     @EnvironmentObject private var themeStore: ThemeStore
     @Environment(\.colorScheme) private var colorScheme
+    private var isDarkSurface: Bool { themeStore.paperStyle.isDarkSurface(scheme: colorScheme) }
+    private var ink: Color { themeStore.paperStyle.inkColor(scheme: colorScheme) }
+    private var placeholderAlpha: CGFloat { isDarkSurface ? 0.22 : 0.08 }
+    private var inkUIColor: UIColor { UIColor(ink) }
+    private var placeholderUIColor: UIColor { inkUIColor.withAlphaComponent(placeholderAlpha) }
+    
     @ObservedObject var router: FocusRouter // フォーカス一本化のため Router を注入
 
     var perform: (EngineCommand) -> Void = { _ in }
@@ -35,8 +43,8 @@ struct IngredientBlockHeaderRowView: View {
                         shouldBecomeFirstResponder:
                             router.current?.rowId == block.id &&
                             router.current?.field == .headerTitle,
-                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                        inkColor: inkUIColor,
+                        placeholderColor: placeholderUIColor,
                         config: .init(
                             onCommit: { perform(.enterNext) }, // Enter の扱いは方針次第（とりあえず既存へ）
                             focus: .init(

@@ -133,10 +133,10 @@ struct RecipeEditView: View {
 
                 //UIKit配置パラメータ
                 railWidth: 38,
-                buttonSize: 30,
+                buttonSize: 38,
                 trailingPadding: 11,
                 verticalSpacing: 16,
-                centerYRatio: 0.38,
+                centerYRatio: 0.26,
                 minBottomPadding: 6,
 
                 showsPrimary: true,

@@ -82,13 +82,8 @@ struct IngredientEngineView: View {
     // MARK: - ──── 罫線（下線）色 ───── //
 
     private var underlineColor: Color {
-        if themeStore.paperStyle.prefersLightInk(scheme: colorScheme) {
-            return Color.white.opacity(0.16)
-        } else {
-            return Color.black.opacity(0.18)
-        }
+        themeStore.paperStyle.separatorColor(scheme: colorScheme)
     }
-
 
     
     // ブロックアイテム行の高さを補正
@@ -360,10 +355,16 @@ struct IngredientEngineView: View {
 
     // MARK: - ===== 🟨　表示ページ本体はここから　🟨　=====　//
     
-    @Environment(\.colorScheme) private var colorScheme // 背景適用に必要
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDarkSurface: Bool { themeStore.paperStyle.isDarkSurface(scheme: colorScheme) }
+    private var ink: Color { themeStore.paperStyle.inkColor(scheme: colorScheme) }
+    private var placeholderAlpha: CGFloat { isDarkSurface ? 0.22 : 0.08 }
+    private var inkUIColor: UIColor { UIColor(ink) }
+    private var placeholderUIColor: UIColor { inkUIColor.withAlphaComponent(placeholderAlpha) }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // ✅ 背景：紙色（罫線は既に各行で出てるので、ここは単色でOK）
+            // 紙色（罫線は既に各行で出てるので、ここは単色でOK）
             themeStore.paperStyle.paperColor(scheme: colorScheme)
                 .ignoresSafeArea()
             // ===== スクロール本体 =====
@@ -371,27 +372,21 @@ struct IngredientEngineView: View {
                     ScrollView {
                         Group {
                             if isEditingAnyField {
-                                // ✅ フォーカス中は非Lazy（firstResponder が落ちにくい）
-                                VStack(alignment: .leading, spacing: 2) {
-                                    rowsBody
-                                }
+                                // フォーカス中は非Lazy（firstResponder が落ちにくい）
+                                VStack(alignment: .leading, spacing: 2) { rowsBody }
                             } else {
-                                // ✅ 通常は Lazy
-                                LazyVStack(alignment: .leading, spacing: 2) {
-                                    rowsBody
-                                }
+                                // 通常は Lazy
+                                LazyVStack(alignment: .leading, spacing: 2) { rowsBody }
                             }
                         }
-
                         Spacer(minLength: 120)
                     }
                     .padding(.trailing, rightRailWidth + rightRailGap)
+                    .foregroundStyle(ink) //“本文だけ”にインク色を当てる（ナビバー等を巻き込まない）
                     .onAppear {
                         store.loadIfNeeded()
                         router.rebuild(rows: store.rows)
                     }
-
-
 
                     .onChange(of: store.rowsRevision) { _ in
                         router.rebuild(rows: store.rows)
@@ -483,8 +478,10 @@ struct IngredientEngineView: View {
 //                            .debugBG(DEBUG, Color.purple.opacity(0.08), "body")
             }
         }
-        //黒紙での文字色問題を専用エクステンションで全体文字色一発変換
-        .foregroundStyle(themeStore.paperStyle.inkColor(scheme: colorScheme))
+        // ✅ ナビバー/ツールバー側は、紙面が暗い時は“見た目だけダーク”に合わせる
+        .toolbarColorScheme(isDarkSurface ? .dark : .light, for: .navigationBar)
+        .toolbarColorScheme(isDarkSurface ? .dark : .light, for: .bottomBar)
+
         
         // MARK: - ──── 右ドックボタン 追加・削除・移動・ホーム ──── //
         .overlay(alignment: .topTrailing) {
@@ -509,7 +506,7 @@ struct IngredientEngineView: View {
                 // スワイプも「同じ出口処理」に統一
                 onSwipeLeft:  { leaveEngine { onSwipeLeft() } },
                 onSwipeRight: { leaveEngine { onSwipeRight() } },
-                centerYRatio: 0.28, minBottomPadding: 0
+                centerYRatio: 0.26, minBottomPadding: 0
             )
             // 右端に“常駐する領域”を確保
             .frame(width: 44)//⚠️背面干渉回避
@@ -589,7 +586,7 @@ struct IngredientEngineView: View {
         }
         .overlay(
             Rectangle()
-                .frame(height: 0.5)
+                .frame(height: 0.5) // ✅下線の高さ（太さ）
                 .foregroundColor(underlineColor)
                 .padding(.leading, leftGutterWidth),
             alignment: .bottom
@@ -691,8 +688,8 @@ struct IngredientEngineView: View {
                         ),
                         placeholder: "材料",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
-                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                        inkColor: inkUIColor,
+                        placeholderColor: placeholderUIColor,
 
                         config: .init(
                             onDidBecomeFirstResponder: { },
@@ -724,8 +721,8 @@ struct IngredientEngineView: View {
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
                         textAlignment: .right,           // ← 差分①
                         keyboardType: .decimalPad,       // ← 差分②
-                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                        inkColor: inkUIColor,
+                        placeholderColor: placeholderUIColor,
                         config: .init(
                             onCommit: { perform(.enterNext) },
                             focus: .init(
@@ -751,8 +748,8 @@ struct IngredientEngineView: View {
                     ),
                         placeholder: "単位",
                         shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
-                        inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                        placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                        inkColor: inkUIColor,
+                        placeholderColor: placeholderUIColor,
                         config: .init(
                             onDidBecomeFirstResponder: { },
                             onCommit: { perform(.enterNext) },
@@ -820,8 +817,8 @@ struct IngredientEngineView: View {
                             ),
                             placeholder: "材料",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .name,
-                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                            inkColor: inkUIColor,
+                            placeholderColor: placeholderUIColor,
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
@@ -851,8 +848,8 @@ struct IngredientEngineView: View {
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .amount,
                             textAlignment: .right,           // ← 差分①
                             keyboardType: .decimalPad,       // ← 差分②
-                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                            inkColor: inkUIColor,
+                            placeholderColor: placeholderUIColor,
                             config: .init(
                                 onCommit: { perform(.enterNext) },
                                 focus: .init(
@@ -877,8 +874,8 @@ struct IngredientEngineView: View {
                         ),
                             placeholder: "単位",
                             shouldBecomeFirstResponder: router.current?.rowId == item.id && router.current?.field == .unit,
-                            inkColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)),
-                            placeholderColor: UIColor(themeStore.paperStyle.inkColor(scheme: colorScheme)).withAlphaComponent(0.05), //透かし文字
+                            inkColor: inkUIColor,
+                            placeholderColor: placeholderUIColor,
                             config: .init(
                                 onDidBecomeFirstResponder: { },
                                 onCommit: { perform(.enterNext) },
