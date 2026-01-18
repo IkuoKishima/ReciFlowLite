@@ -162,9 +162,9 @@ final class NavigationDockController: NSObject {
             flex,
             done, spacer,
             up, spacer,
+            down, spacer, spacer,
             left, spacer,
-            right, spacer,
-            down,
+            right,
             rightInset
         ]
     }

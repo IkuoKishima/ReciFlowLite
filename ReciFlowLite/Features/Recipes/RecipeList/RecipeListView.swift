@@ -20,7 +20,12 @@ struct RecipeListView: View {
 
 
 
+    private let baseBottomPadding: CGFloat = 18
+    // トーストの見た目サイズ（概算）
+    // Text + padding(12) + corner + shadow を含めて少し多めに確保
+    private let undoToastLift: CGFloat = 80   // ← ここを調整ポイント（80〜96くらい）
 
+    
     var body: some View {
         ZStack(alignment: .top) {
 
@@ -217,33 +222,45 @@ struct RecipeListView: View {
                 }
             )
             .padding(.leading, 18)
-            .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
+            .padding(.bottom, (store.pendingUndo != nil) ? undoToastLift : baseBottomPadding)
             .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
         }
         // ✅ Undoトースト
         .overlay(alignment: .bottom) {
             if store.pendingUndo != nil {
-                HStack {
-                    Text("Deleted")
-                        .font(.callout)
+                HStack(spacing: 10) {
+
+                    // 確定（Deleted）
+                    Button {
+                        Task { @MainActor in store.finalizeDelete() }
+                    } label: {
+                        Label("Deleted", systemImage: "trash")
+                            .font(.callout.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.primary) // 青リンク化を防ぐ（見た目を中立に）
 
                     Spacer()
 
-                    Button("Undo") {
-                        Task { @MainActor in
-                            store.undoDelete()
-                        }
+                    // Undo（強調）
+                    Button {
+                        Task { @MainActor in store.undoDelete() }
+                    } label: {
+                        Text("Undo")
+                            .font(.callout.weight(.semibold))
                     }
-                    .font(.callout.weight(.semibold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(.primary) // ガラス世界観に寄せる（青を消したいならこれ）
                 }
                 .padding(12)
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+
 
         // ✅ 追加ボタン
         .overlay(alignment: .bottomTrailing) {
@@ -261,7 +278,7 @@ struct RecipeListView: View {
             .disabled(store.isLoading)
             .opacity(store.isLoading ? 0.3 : 1.0)
             .padding(.trailing, 18)
-            .padding(.bottom, (store.pendingUndo != nil) ? 74 : 18)
+            .padding(.bottom, (store.pendingUndo != nil) ? undoToastLift : baseBottomPadding)
             .animation(.easeInOut(duration: 0.18), value: store.pendingUndo != nil)
         }
     }

@@ -8,13 +8,14 @@ import Combine
 // MARK: - 型・クラス（class）
 @MainActor
 final class RecipeStore: ObservableObject {
-    
-    
     // MARK: - 🟨プロパティ（property）その物が持っているメモリ上の状態・値
     
     @Published var recipes: [Recipe] = []
     @Published var isLoading: Bool = false
     @Published var pendingUndo: Recipe? = nil //1件Undoのために追記
+    private var pendingUndoTask: Task<Void, Never>? = nil // 削除自動確定用
+    
+    
     private var engineStores: [UUID: IngredientEngineStore] = [:]
  
     
@@ -58,34 +59,51 @@ final class RecipeStore: ObservableObject {
     
     
 
-    // 削除/追加（書き換える挙動 IndexSet）を受ける関数
+    // MARK: - 削除/追加（書き換える挙動 IndexSet）を受ける関数
     
     func requestDelete(at offsets: IndexSet) {
         guard let index = offsets.first, recipes.indices.contains(index) else { return }
         let target = recipes[index]
 
-        // 1) まずUI上から消す（体感を良くする）
-        recipes.remove(at: index)
-
-        // 2) 直前削除として保持（1件だけ）
-        pendingUndo = target
-
-        // 3) DBは論理削除
-        DatabaseManager.shared.softDelete(recipeID: target.id)
+        finalizeDelete() // すでにUndo待ちがあるなら「確定」してから次へ（表示が詰まらない）
+        recipes.remove(at: index) // 1) まずUI上から消す（体感を良くする）
+        pendingUndo = target // 2) 直前削除として保持（1件だけ）
+        DatabaseManager.shared.softDelete(recipeID: target.id) // 3) DBは論理削除
+//        scheduleAutoFinalize(seconds: 5) // ⚠️今は自動削除は止めておく　数秒後に自動で確定してトーストを消す（好みで秒数変更）
+        
     }
     
     
     func undoDelete() {
+        pendingUndoTask?.cancel()
+        pendingUndoTask = nil
+        
         guard let r = pendingUndo else { return }
         pendingUndo = nil
-
-        // 1) DB復元
-        DatabaseManager.shared.restore(recipeID: r.id)
-
-        // 2) UIに戻す（先頭に戻すでOK / index復元は後で良い）
-        recipes.insert(r, at: 0)
+        DatabaseManager.shared.restore(recipeID: r.id) // 1) DB復元
+        recipes.insert(r, at: 0) // 2) UIに戻す（先頭に戻すでOK / index復元は後で良い）
     }
     
+    // 削除を「確定」してトーストを消す（DB側は既にsoftDelete済みなのでUIだけ閉じる）
+    func finalizeDelete() {
+        pendingUndoTask?.cancel()
+        pendingUndoTask = nil
+        pendingUndo = nil
+    }
+    // 自動確定（Undoの猶予時間）
+    private func scheduleAutoFinalize(seconds: Double) {
+        pendingUndoTask?.cancel()
+        pendingUndoTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            } catch {
+                return
+            }
+            await MainActor.run {
+                self?.finalizeDelete()
+            }
+        }
+    }
     
 
 

@@ -25,10 +25,10 @@ struct UIKitRightDock: UIViewRepresentable {
 
     // actions
     let onToggleDelete: () -> Void
-    let onAddSingle: () -> Void
-    let onAddBlock: () -> Void
-    let onPrimary: () -> Void
     let onHome: () -> Void
+    let onPrimary: () -> Void
+    let onAddBlock: () -> Void
+    let onAddSingle: () -> Void
 
     // swipe
     let onSwipeLeft: () -> Void
@@ -128,17 +128,17 @@ struct UIKitRightDock: UIViewRepresentable {
             stack.addArrangedSubview(deleteBtn)
             context.coordinator.deleteButton = deleteBtn
         }
-
-        if showsAdd {
-            stack.addArrangedSubview(makeButton(symbol: "plus", selector: #selector(Coordinator.tapAddSingle)))
-            stack.addArrangedSubview(makeButton(symbol: "square.grid.2x2", selector: #selector(Coordinator.tapAddBlock)))
+        if showsHome {
+            stack.addArrangedSubview(makeButton(symbol: "list.bullet.rectangle", selector: #selector(Coordinator.tapHome)))
         }
-
+        
         if showsPrimary {
             stack.addArrangedSubview(makeButton(symbol: primarySymbol, selector: #selector(Coordinator.tapPrimary)))
         }
-        if showsHome {
-            stack.addArrangedSubview(makeButton(symbol: "list.bullet.rectangle", selector: #selector(Coordinator.tapHome)))
+
+        if showsAdd {
+            stack.addArrangedSubview(makeButton(symbol: "square.grid.2x2", selector: #selector(Coordinator.tapAddBlock)))
+            stack.addArrangedSubview(makeButton(symbol: "plus", selector: #selector(Coordinator.tapAddSingle)))
         }
 
         if showsKeyboardDismiss {

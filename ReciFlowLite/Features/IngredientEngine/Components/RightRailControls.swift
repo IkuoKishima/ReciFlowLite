@@ -17,14 +17,13 @@ struct RightRailControls: View {
 
     
     let isDeleteMode: Bool // ✅ 追加：削除モード
-    let onToggleDelete: () -> Void // 🗑️
     
-    // ✅ 追加
-
-    let onAddSingle: () -> Void   // ＋
-    let onAddBlock: () -> Void    // 2x2
-    let onPrimary: () -> Void   // > or <
+    let onToggleDelete: () -> Void // 🗑️
     let onHome: () -> Void      // 🔳
+    let onPrimary: () -> Void   // > or <
+    let onAddBlock: () -> Void    // 2x2
+    let onAddSingle: () -> Void   // ＋
+    
     var showsKeyboardDismiss: Bool = false  //閉じる
     let onKeyboardDismiss: () -> Void        //閉じる
 

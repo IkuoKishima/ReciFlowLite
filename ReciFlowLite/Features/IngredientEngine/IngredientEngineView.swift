@@ -501,14 +501,10 @@ struct IngredientEngineView: View {
                     dismissKeyboard()
                     isDeleteMode.toggle()
                 },
-
-                onAddSingle: { perform(.addSingle) },
-
-                onAddBlock:  { perform(.addBlock) },
-
-
-                onPrimary: { leaveEngine { onPrimary() } },
                 onHome:    { leaveEngine { onHome() } },
+                onPrimary: { leaveEngine { onPrimary() } },
+                onAddBlock:  { perform(.addBlock) },
+                onAddSingle: { perform(.addSingle) },
 
                 // スワイプも「同じ出口処理」に統一
                 onSwipeLeft:  { leaveEngine { onSwipeLeft() } },
