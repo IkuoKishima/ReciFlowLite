@@ -358,7 +358,8 @@ struct IngredientEngineView: View {
     @Environment(\.colorScheme) private var colorScheme
     private var isDarkSurface: Bool { themeStore.paperStyle.isDarkSurface(scheme: colorScheme) }
     private var ink: Color { themeStore.paperStyle.inkColor(scheme: colorScheme) }
-    private var placeholderAlpha: CGFloat { isDarkSurface ? 0.22 : 0.08 }
+    //✅ここで透かし文字の濃さの調整
+    private var placeholderAlpha: CGFloat { isDarkSurface ? 0.10 : 0.08 }
     private var inkUIColor: UIColor { UIColor(ink) }
     private var placeholderUIColor: UIColor { inkUIColor.withAlphaComponent(placeholderAlpha) }
 

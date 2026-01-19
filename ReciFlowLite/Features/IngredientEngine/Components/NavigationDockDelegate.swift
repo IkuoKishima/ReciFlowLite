@@ -18,14 +18,7 @@ final class NavigationDockController: NSObject {
 
     static let shared = NavigationDockController()
 
-    // delegate が消えた瞬間に repeat が残らないようにする安全弁
-    weak var delegate: NavigationDockDelegate? {
-        didSet {
-            if delegate == nil {
-                stopRepeat()
-            }
-        }
-    }
+    weak var delegate: NavigationDockDelegate?
 
     // MARK: - Toolbar
 
