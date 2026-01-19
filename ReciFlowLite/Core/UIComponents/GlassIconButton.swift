@@ -13,7 +13,7 @@ struct GlassIconButton: View {
     /// 見た目のガラス球（ここを34にすると“小さく見える”）
     var visualDiameter: CGFloat = 44
 
-    /// ✅ 追加：アイコン色
+    /// アイコン色
     var symbolColor: Color = .primary   // ← デフォルトを付けるのが肝
 
     /// アイコン枠（visualに連動させる：30固定ではなく比率）
@@ -30,7 +30,7 @@ struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(symbolColor)   // ✅ここが本体
+                .foregroundStyle(symbolColor)   // ここが本体
                 .font(.system(size: visualDiameter * (22.0 / 44.0), weight: .semibold))
                 .frame(width: iconBox, height: iconBox)
                 .contentShape(Circle())
@@ -107,28 +107,7 @@ struct GlassIconButton: View {
     }
 }
 
-
-
-
-
-
-////ビルドせずに試す場合の表示法
-//#Preview("GlassIconButton – Quick") {
-//    ZStack {
-//        LinearGradient(colors: [.black, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
-//            .ignoresSafeArea()
-//
-//        HStack(spacing: 18) {
-//            GlassIconButton(symbol: "keyboard.chevron.compact.down") {}
-//            GlassIconButton(symbol: "chevron.up") {}
-//            GlassIconButton(symbol: "chevron.left") {}
-//            GlassIconButton(symbol: "chevron.right") {}
-//            GlassIconButton(symbol: "chevron.down") {}
-//        }
-//    }
-//}
-
-
+// MARK: - プレビュー
 
 #Preview("GlassIconButton – Variations") {
     GlassIconButtonPreviewGallery()
@@ -137,7 +116,7 @@ struct GlassIconButton: View {
 /// Preview専用：背景を変えて“透過感”を比較する
 private struct GlassIconButtonPreviewGallery: View {
 
-    // ✅ 見た目の外径（ガラス球の直径）
+    // 見た目の外径（ガラス球の直径）
     private let diameter: CGFloat = 44
 
     var body: some View {

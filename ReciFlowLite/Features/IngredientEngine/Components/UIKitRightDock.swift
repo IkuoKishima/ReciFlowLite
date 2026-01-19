@@ -79,7 +79,6 @@ struct UIKitRightDock: UIViewRepresentable {
         // --- swipe rail ---
         let rail = UIView()
         rail.translatesAutoresizingMaskIntoConstraints = false
-//        rail.backgroundColor = UIColor.red.withAlphaComponent(0.92) // ✅debug。リリース前にclearへ
         root.addSubview(rail)
 
         NSLayoutConstraint.activate([
@@ -354,7 +353,7 @@ struct UIKitRightDock: UIViewRepresentable {
         @objc func tapPrimary() { parent.onPrimary() }
         @objc func tapHome() { parent.onHome() }
 
-        /// ✅ ここが “安定の本丸”
+        /// ここが “安定の本丸”
         @objc func tapKeyboardDismiss() {
             // KeyWindow endEditing(true)
             UIApplication.shared.connectedScenes

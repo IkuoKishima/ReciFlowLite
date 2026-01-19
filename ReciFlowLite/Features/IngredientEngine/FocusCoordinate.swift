@@ -7,7 +7,7 @@ struct FocusCoordinate: Equatable {
         case amount = 1
         case unit = 2
 
-        // ✅ 追加：ブロックタイトル（レールには含めないが、フォーカス座標として扱う）
+        // ブロックタイトル（レールには含めないが、フォーカス座標として扱う）
         case headerTitle = 3
     }
 

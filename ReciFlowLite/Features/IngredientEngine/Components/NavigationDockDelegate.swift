@@ -17,7 +17,6 @@ protocol NavigationDockDelegate: AnyObject {
 final class NavigationDockController: NSObject {
 
     static let shared = NavigationDockController()
-
     weak var delegate: NavigationDockDelegate?
 
     // MARK: - Toolbar

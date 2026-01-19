@@ -27,7 +27,7 @@ final class FocusRouter: ObservableObject {
         
         guard let c = current else { return }
         
-        // ✅ 追加：headerTitle は “レール外でもOK”。存在していれば保持する
+        // headerTitle は “レール外でもOK”。存在していれば保持する
         if c.field == .headerTitle {
             let headerStillExists = rows.contains(where: { row in
                 if case .blockHeader(let b) = row { return b.id == c.rowId }
@@ -39,7 +39,7 @@ final class FocusRouter: ObservableObject {
             internally { current = fallbackAfterRebuild() }
             return
         }
-        // ✅ それ以外は従来どおり「レールに居なければ fallback」
+        // それ以外は従来どおり「レールに居なければ fallback」
         if !railRowIds.contains(c.rowId) {
             internally { current = fallbackAfterRebuild() }
         }
@@ -75,7 +75,7 @@ final class FocusRouter: ObservableObject {
     /// UITextFieldDidBeginEditing から「実フォーカス」を報告する（※外部setとは別）
     func reportFocused(rowId: UUID, field: FocusCoordinate.Field) {
         guard !isInternalUpdate else { return }
-        guard current != .init(rowId: rowId, field: field) else { return } // ✅ 同値抑制
+        guard current != .init(rowId: rowId, field: field) else { return } // 同値抑制
         current = .init(rowId: rowId, field: field)
     }
     

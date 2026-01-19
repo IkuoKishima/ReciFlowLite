@@ -40,7 +40,7 @@ enum ExportFileWriter {
             return url
         }
 
-    /// ✅ 任意：古いExportを掃除（例：最新N個だけ残す）
+    /// ✅  任意：古いExportを掃除（例：最新N個だけ残す）
     static func cleanupOldExports(keepLatest count: Int = 10) {
         let fm = FileManager.default
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
