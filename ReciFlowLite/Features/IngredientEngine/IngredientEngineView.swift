@@ -488,6 +488,7 @@ struct IngredientEngineView: View {
         .overlay(alignment: .topTrailing) {
            
             UIKitRightDock(
+                isDarkBackground: themeStore.paperStyle.isDarkBackground,
                 mode: .back,
                 showsDelete: true,
                 showsAdd: true,

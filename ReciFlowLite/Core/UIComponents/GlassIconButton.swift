@@ -1,4 +1,5 @@
 ///  GlassIconButton.swift
+///  重要⚠️責務分離：ここでは色を決めない
 
 import SwiftUI
 
@@ -12,11 +13,14 @@ struct GlassIconButton: View {
     /// 見た目のガラス球（ここを34にすると“小さく見える”）
     var visualDiameter: CGFloat = 44
 
+    /// ✅ 追加：アイコン色
+    var symbolColor: Color = .primary   // ← デフォルトを付けるのが肝
+
     /// アイコン枠（visualに連動させる：30固定ではなく比率）
     private var iconBox: CGFloat { visualDiameter * (30.0 / 44.0) }
 
     /// リング線幅（これも比率で縮む）
-    private var ringWidth: CGFloat { visualDiameter * (1.4 / 44.0) }
+    private var ringWidth: CGFloat { visualDiameter * (3.4 / 44.0) }
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -26,31 +30,26 @@ struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(.primary)
+                .foregroundStyle(symbolColor)   // ✅ここが本体
                 .font(.system(size: visualDiameter * (22.0 / 44.0), weight: .semibold))
                 .frame(width: iconBox, height: iconBox)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-
-        // ✅ 当たり判定は44のまま
         .frame(width: hitSize, height: hitSize)
-
-        // ✅ 見た目だけ中央に小さく置く
         .background {
             glassBody(d: visualDiameter)
                 .frame(width: visualDiameter, height: visualDiameter)
-                .allowsHitTesting(false) // ← 見た目側はヒットさせない
+                .allowsHitTesting(false)
         }
     }
 
     @ViewBuilder
     private func glassBody(d: CGFloat) -> some View {
-        // ✅ ここから下は “d基準” の比率指定にするのが肝
         let rw = ringWidth
         let ringInset = d * (0.4 / 44.0)
         let ringOutset = d * (1.2 / 44.0)
-        let cut = rw * 2.2  // これだけは線幅に連動でOK（比率崩れにくい）
+        let cut = rw * 2.2
 
         ZStack {
             Circle().fill(Color.clear)
@@ -59,7 +58,7 @@ struct GlassIconButton: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            .white.opacity(isPreview ? 0.10 : 0.06),
+                            .white.opacity(isPreview ? 0.01 : 0.06),
                             .white.opacity(0.0)
                         ],
                         center: .center,
@@ -69,8 +68,6 @@ struct GlassIconButton: View {
                 )
                 .blendMode(.plusLighter)
                 .opacity(0.9)
-
-                // 外周リング（比率維持）
                 .overlay {
                     Circle()
                         .stroke(
@@ -79,7 +76,6 @@ struct GlassIconButton: View {
                                     .init(color: .white.opacity(0.0), location: 0.00),
                                     .init(color: .white.opacity(isPreview ? 0.40 : 0.26), location: 0.07),
                                     .init(color: .white.opacity(0.0), location: 0.30),
-
                                     .init(color: .white.opacity(0.0), location: 0.54),
                                     .init(color: .white.opacity(isPreview ? 0.32 : 0.22), location: 0.62),
                                     .init(color: .white.opacity(0.0), location: 0.86),
@@ -90,12 +86,10 @@ struct GlassIconButton: View {
                             lineWidth: rw
                         )
                         .blendMode(.screen)
-                        // ✅ “外へ押し出す” も d 比率で
                         .frame(
                             width: d - ringInset + ringOutset,
                             height: d - ringInset + ringOutset
                         )
-                        // ✅ 外周帯だけ残す（線幅に連動）
                         .mask {
                             ZStack {
                                 Circle().frame(width: d, height: d)
@@ -112,6 +106,7 @@ struct GlassIconButton: View {
         .clipShape(Circle())
     }
 }
+
 
 
 

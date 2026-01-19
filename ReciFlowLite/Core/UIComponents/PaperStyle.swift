@@ -98,3 +98,8 @@ extension PaperStyle {
     }
 
 }
+extension PaperStyle {
+    var isDarkBackground: Bool {
+        self == .blackPaper
+    }
+}

@@ -108,6 +108,7 @@ struct RecipeEditView: View {
         .overlay(alignment: .topTrailing) {
                     
             UIKitRightDock(
+                isDarkBackground: false, // ←追加（Editは明るい背景扱い）
                 mode: .forward,
                 showsDelete: false,
                 showsAdd: false,
